@@ -74,7 +74,6 @@ class SuperchatArchiver:
 
         except Exception as e:
             print(self.videoid)
-            #print(response)
             print(e)
             return None
 
@@ -98,15 +97,15 @@ class SuperchatArchiver:
                 chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()))
                 while chat.is_alive():
                     await asyncio.sleep(3)
-                newmetadata = self.get_video_info(self.videoid)
-                if newmetadata["live"] in ["upcoming","live"]:
+                newmetadata = self.get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
+                if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
                     print(datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()+": Error! Chat monitor ended prematurely!")
                     print(chat.is_alive())
                     self.chat_err = True
                 if self.videoinfo["caught_while"] in ["upcoming","live"]:
+                    #use newer metadata while rescuing certain fields from the old metadata
                     createdDateTime = self.videoinfo["publishDateTime"]
                     caught_while = self.videoinfo["caught_while"]
-                    #newmetadata = get_video_info(videoid)
                     if newmetadata is not None:
                         self.videoinfo = newmetadata
                         self.videoinfo["createdDateTime"] = createdDateTime
@@ -128,8 +127,9 @@ class SuperchatArchiver:
 
     async def display(self,data,amount):
         if len(data.items) > 0:
-            print(self.videoinfo["channel"],self.videoinfo["title"],data.items[-1].elapsedTime, amount["amount_sc"])#,amount)
-            for c in data.items:
+            print(self.videoinfo["channel"],self.videoinfo["title"],data.items[-1].elapsedTime, amount["amount_sc"])
+            for c in data.items: #data.items contains superchat messages - save them in list while also saving the calculated
+                #sums in a list
                 if c.type == "superChat" or c.type == "superSticker":
                     if c.currency in self.clean_currency.keys():
                         c.currency = self.clean_currency[c.currency]
@@ -144,12 +144,6 @@ class SuperchatArchiver:
                     sc_info = {"time":c.timestamp,"currency":c.currency,"value":c.amountValue,"weekday":sc_weekday,
                                "hour":sc_hour,"minute":sc_minute,"user":sc_user, "userid":sc_userid, "message":sc_message,
                                "color":sc_color, "debugtime":sc_datetime.isoformat()}
-                    #if self.chat_err:
-                     #   for currency in self.stats[-1].keys():
-                      #      if currency in amount.keys():
-                       #         amount[currency] += self.stats[-1][currency]
-                        #    else:
-                         #       amount[currency] = self.stats[-1][currency]
                     self.stats.append(amount)
                     self.dict_list.append(sc_info)
 
