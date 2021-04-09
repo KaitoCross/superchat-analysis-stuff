@@ -65,7 +65,7 @@ class channel_monitor:
                             self.api_points_used = 10000.0
                             print("API Quota exceeded!")
                     else:
-                        if not self.video_analysis[stream].running and stream not in self.running_streams:
+                        if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
                             self.api_points_used += self.video_analysis[stream].api_points_used
                             self.video_analysis.pop(stream)
             total_points_used = await self.total_api_points_used()
