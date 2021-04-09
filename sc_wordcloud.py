@@ -17,6 +17,7 @@ sc_log = json.load(sc_log_file)
 stopwords_file = open("stopwords.txt","r")
 stopwords_from_file = stopwords_file.read()
 ignored_words = stopwords_from_file.split()
+stopwords_file.close()
 longstring = ""
 
 #x, y = np.ogrid[:1000, :1000]
@@ -28,8 +29,9 @@ for superchat in sc_log:
         longstring += " "+superchat["message"]
 STOPWORDS.update(ignored_words)
 wordcloud = WordCloud(collocations=False, background_color="white",width=1280, height=720).generate(longstring)
-print(wordcloud.words_)
-
+#print(wordcloud.words_)
+filename=args.path.split(".")[0]
+wordcloud.to_file(filename+"-wordcloud.png")
 plt.imshow(wordcloud, interpolation="bilinear")
 plt.axis("off")
 plt.show()
