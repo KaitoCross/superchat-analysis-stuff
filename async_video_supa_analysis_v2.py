@@ -156,9 +156,9 @@ class SuperchatArchiver:
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('yt_vid_id', metavar='N', type=str,
-                        help='The YouTube livestream/video ID', default='-OcnD2Nc9qo')
+                        help='The YouTube livestream/video ID', default='')
     args = parser.parse_args()
-    yt_api_key = "AIzaSyBl6E3lfSCrpEcU1RKfpLRNsXF-yaj0dZ8"
+    yt_api_key = "I am stupid. The old API key is now invalid."
     ytapi = YouTubeDataAPI(yt_api_key)
     analysis = SuperchatArchiver(args.yt_vid_id,ytapi)
     loop = asyncio.get_event_loop()
