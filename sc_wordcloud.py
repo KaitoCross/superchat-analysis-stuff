@@ -26,7 +26,8 @@ mask = np.array(Image.open(args.maskimage))
 
 for superchat in sc_log:
     if superchat["message"]:
-        longstring += " "+superchat["message"]
+        if '_' not in superchat["message"]:
+            longstring += " "+superchat["message"]
 STOPWORDS.update(ignored_words)
 wordcloud = WordCloud(collocations=False, background_color="white",width=1280, height=720, mask = mask).generate(longstring)
 #print(wordcloud.words_)
