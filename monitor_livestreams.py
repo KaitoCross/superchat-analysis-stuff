@@ -8,7 +8,7 @@ from aiohttp_requests import requests
 class channel_monitor:
     def __init__(self,chan_list,api_pts_used = 0.0):
         self.reset_used = False
-        self.yt_api_key = "AIzaSyBl6E3lfSCrpEcU1RKfpLRNsXF-yaj0dZ8"
+        self.yt_api_key = "####"
         self.api_points_used = api_pts_used
         self.video_analysis = {}
         self.chan_ids =chan_list
