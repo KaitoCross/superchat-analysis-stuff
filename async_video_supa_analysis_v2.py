@@ -161,6 +161,7 @@ if __name__ =='__main__':
     yt_api_key = "I am stupid. The old API key is now invalid."
     keyfile = open("yt_api_key.txt", "r")
     yt_api_key = keyfile.read()
+    keyfile.close()
     analysis = SuperchatArchiver(args.yt_vid_id,yt_api_key)
     loop = asyncio.get_event_loop()
     try:

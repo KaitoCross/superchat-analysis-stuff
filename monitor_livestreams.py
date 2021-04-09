@@ -11,6 +11,7 @@ class channel_monitor:
         self.yt_api_key = "####"
         keyfile = open("yt_api_key.txt", "r")
         self.yt_api_key = keyfile.read()
+        keyfile.close()
         self.api_points_used = api_pts_used
         self.video_analysis = {}
         self.chan_ids = chan_list
@@ -147,7 +148,6 @@ if __name__ =='__main__':
     args = parser.parse_args()
     chan_ids = args.channel_id
     max_watched_channels = len(chan_ids)
-    #analysis = SuperchatArchiver(args.yt_vid_id,ytapi)
     print('# of channels bein watched:',max_watched_channels)
     monitor = channel_monitor(chan_ids,args.pts)
     loop = asyncio.get_event_loop()
