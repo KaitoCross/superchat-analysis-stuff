@@ -6,7 +6,7 @@ import numpy as np
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('path', metavar='vidID', type=str,
+parser.add_argument('path', metavar='sc_file_path', type=str,
                     help='path to the superchat log file')
 args = parser.parse_args()
 
