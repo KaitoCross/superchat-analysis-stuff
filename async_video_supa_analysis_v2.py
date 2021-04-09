@@ -159,8 +159,9 @@ if __name__ =='__main__':
                         help='The YouTube livestream/video ID', default='')
     args = parser.parse_args()
     yt_api_key = "I am stupid. The old API key is now invalid."
-    ytapi = YouTubeDataAPI(yt_api_key)
-    analysis = SuperchatArchiver(args.yt_vid_id,ytapi)
+    keyfile = open("yt_api_key.txt", "r")
+    yt_api_key = keyfile.read()
+    analysis = SuperchatArchiver(args.yt_vid_id,yt_api_key)
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(analysis.main())

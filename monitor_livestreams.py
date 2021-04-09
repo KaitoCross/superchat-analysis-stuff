@@ -9,9 +9,11 @@ class channel_monitor:
     def __init__(self,chan_list,api_pts_used = 0.0):
         self.reset_used = False
         self.yt_api_key = "####"
+        keyfile = open("yt_api_key.txt", "r")
+        self.yt_api_key = keyfile.read()
         self.api_points_used = api_pts_used
         self.video_analysis = {}
-        self.chan_ids =chan_list
+        self.chan_ids = chan_list
         self.running_streams = []
         self.analyzed_streams = []
         self.api_points = 10000.0
