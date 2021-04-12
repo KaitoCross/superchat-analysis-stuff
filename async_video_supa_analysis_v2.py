@@ -12,9 +12,10 @@ from concurrent.futures import CancelledError
 from pytchat import (LiveChatAsync, 
      SuperchatCalculator, SuperChatLogProcessor)
 from youtube_api import YouTubeDataAPI
+from sc_wordcloud import superchat_wordcloud
 
 class SuperchatArchiver:
-    def __init__(self,vid_id, api_key):
+    def __init__(self,vid_id, api_key, gen_WC = False):
         self.api_points_used = 1.0
         self.api = YouTubeDataAPI(api_key) #uses 1p to check key
         self.videoid = vid_id
@@ -24,6 +25,7 @@ class SuperchatArchiver:
         self.videoinfo = {}
         self.stats = []
         self.dict_list = []
+        self.gen_wc = gen_WC
         self.clean_currency = {"¥": "JPY",
                           "NT$": "TWD",
                           "$": "USD",
@@ -121,6 +123,9 @@ class SuperchatArchiver:
                     os.rename(f.name, f.name+".err"+str(retries))
                     os.rename(f_stats.name, f_stats.name + ".err"+str(retries))
                     retries +=1
+                if not self.chat_err and retries == 0 and self.gen_wc:
+                    wordcloudmake = superchat_wordcloud(f.name)
+                    wordcloudmake.generate()
             else:
                 print(self.videoinfo["title"]+" is not a broadcast recording or premiere")
         self.running = False
