@@ -21,7 +21,6 @@ class SuperchatArchiver:
         self.videoid = vid_id
         self.channel_id = ""
         self.metadata = {}
-        #self.videolist = {}
         self.videoinfo = {}
         self.stats = []
         self.dict_list = []
@@ -41,7 +40,6 @@ class SuperchatArchiver:
         self.metadata = self.get_video_info(self.videoid)
         self.running = True
         if self.metadata is not None:
-            #self.videolist[self.videoid] = self.metadata
             self.videoinfo = self.metadata
             self.channel_id = self.metadata["channelId"]
         else:

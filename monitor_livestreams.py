@@ -4,6 +4,7 @@ import argparse, time, os, asyncio, pytz
 from datetime import datetime, timezone, timedelta
 import aiohttp
 from aiohttp_requests import requests
+import math
 
 class channel_monitor:
     def __init__(self,chan_list,api_pts_used = 0.0):
@@ -22,7 +23,7 @@ class channel_monitor:
         self.max_watched_channels = len(self.chan_ids)
         self.cost_per_request = 100.0
         #calculate how many times I can monitor all of the channels together using the Youtube search API (costs MANY API points)
-        self.requests_left = int(((self.api_points-self.api_points_used) - self.desired_leftover_points) / (self.max_watched_channels*self.cost_per_request))
+        self.requests_left = math.floor((self.api_points-self.api_points_used) / (self.max_watched_channels*self.cost_per_request))
         #Calculate how long I have to wait for the next search request - trying not to exceed the 24h API usage limits
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
 
@@ -81,8 +82,7 @@ class channel_monitor:
                 # Calculate how long I have to wait for the next search request
                 # trying not to exceed the 24h API usage limits while also accounting for time already passed since last
                 # API point reset (which happens at midnight pacific time)
-                self.requests_left = int(((self.api_points - self.api_points_used) - self.desired_leftover_points) / (
-                            self.max_watched_channels * self.cost_per_request))
+                self.requests_left = math.floor((self.api_points - self.api_points_used) / (self.max_watched_channels * self.cost_per_request))
                 temp = await self.time_until_specified_hour(0,pytz.timezone('America/Los_Angeles'))
                 self.sleep_dur = temp.total_seconds()/self.requests_left
                 resume_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))+timedelta(seconds=self.sleep_dur)
