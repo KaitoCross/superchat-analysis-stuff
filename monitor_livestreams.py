@@ -77,6 +77,7 @@ class channel_monitor:
                 resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
                 t_delta = resume_at-time_now
                 self.sleep_dur = t_delta.total_seconds()
+                self.requests_left = 0
                 self.reset_used = True
             else:
                 # Calculate how long I have to wait for the next search request
@@ -86,13 +87,17 @@ class channel_monitor:
                 temp = await self.time_until_specified_hour(0,pytz.timezone('America/Los_Angeles'))
                 self.sleep_dur = temp.total_seconds()/self.requests_left
                 resume_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))+timedelta(seconds=self.sleep_dur)
-            print('sleeping again for ' + str(self.sleep_dur/60) + ' minutes, approx. '+str(self.api_points-self.api_points_used)+' points left')
+            print('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
+            print('approx. '+str(self.api_points-self.api_points_used)+' points left')
+            print(self.requests_left, "requests left")
             awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
             print('next run at: ' + awake_at.isoformat() + " Berlin Time")
             await asyncio.sleep(self.sleep_dur)
             #When midnight passes, do this API point reset
             if self.reset_used:
                 self.api_points_used = 0
+                self.requests_left = math.floor(
+                    (self.api_points - self.api_points_used) / (self.max_watched_channels * self.cost_per_request))
                 print('used points reset at ' + datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat() + " Berlin time")
                 self.reset_used = False
 

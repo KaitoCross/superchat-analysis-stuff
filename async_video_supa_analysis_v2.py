@@ -92,7 +92,8 @@ class SuperchatArchiver:
                         continue
                 f = open(self.channel_id+"/sc_logs/"+self.videoid + ".txt", "w")
                 f_stats = open(self.channel_id+"/vid_stats/"+self.videoid + "_stats.txt", "w")
-                print("Started Analysis at: "+datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat())
+                analysis_ts = datetime.now(tz=pytz.timezone('Europe/Berlin'))
+                print("Started Analysis at: "+analysis_ts.isoformat())
                 print("Analyzing Video " + datetime.fromtimestamp(self.videoinfo["publishDateTime"],timezone.utc).isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
                 chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()))
                 while chat.is_alive():
@@ -112,6 +113,7 @@ class SuperchatArchiver:
                         self.videoinfo["caught_while"] = caught_while
                     else:
                         exit(-1)
+                self.videoinfo["startedLogAt"] = analysis_ts.timestamp()
                 print("writing to files")
                 f.write(json.dumps(self.dict_list))
                 f.close()
@@ -121,7 +123,7 @@ class SuperchatArchiver:
                     os.rename(f.name, f.name+".err"+str(retries))
                     os.rename(f_stats.name, f_stats.name + ".err"+str(retries))
                     retries +=1
-                if not self.chat_err and retries == 0 and self.gen_wc:
+                if not self.chat_err and retries == 0 and self.gen_wc and len(self.dict_list) > 0:
                     wordcloudmake = superchat_wordcloud(f.name)
                     wordcloudmake.generate()
             else:
