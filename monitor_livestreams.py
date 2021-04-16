@@ -1,6 +1,6 @@
 from async_video_supa_analysis_v2 import SuperchatArchiver
 from youtube_api import YouTubeDataAPI
-import argparse, time, os, asyncio, pytz
+import argparse, time, os, asyncio, pytz, logging, signal, sys
 from datetime import datetime, timezone, timedelta
 import aiohttp
 from aiohttp_requests import requests
@@ -8,7 +8,9 @@ import math
 
 class channel_monitor:
     def __init__(self,chan_list,api_pts_used = 0.0):
+        self.running = True
         self.reset_used = False
+        signal.signal(signal.SIGUSR1, self.signal_handler)
         self.yt_api_key = "####"
         keyfile = open("yt_api_key.txt", "r")
         self.yt_api_key = keyfile.read()
@@ -31,7 +33,7 @@ class channel_monitor:
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
         self.sleep_dur = temp.total_seconds() / self.requests_left
-        while True:
+        while self.running:
             self.running_streams.clear()
             try:
                 for chan_id in self.chan_ids:
@@ -146,6 +148,14 @@ class channel_monitor:
             if self.video_analysis[stream] is not None:
                 points_used_by_analysis += self.video_analysis[stream].api_points_used
         return points_used_by_analysis+self.api_points_used
+
+    def signal_handler(self, sig, frame):
+        for stream in self.video_analysis:
+            self.video_analysis[stream].cancel()
+        #self.running = False
+        print("cancelled logging")
+        print("api points used:", self.api_points_used)
+
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('channel_id', metavar='N', type=str, nargs='+', help='The YouTube channel IDs')
@@ -156,6 +166,9 @@ if __name__ =='__main__':
     print('# of channels bein watched:',max_watched_channels)
     monitor = channel_monitor(chan_ids,args.pts)
     loop = asyncio.get_event_loop()
+    loop.set_debug(True)
+    logging.getLogger("asyncio").setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO)
     try:
         loop.run_until_complete(monitor.main())
     except asyncio.CancelledError:
