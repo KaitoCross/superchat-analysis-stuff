@@ -9,6 +9,7 @@ from pytchat import (LiveChatAsync,
 import concurrent.futures
 from youtube_api import YouTubeDataAPI
 from sc_wordcloud import superchat_wordcloud
+from merge_SC_logs_v2 import recount_money
 
 class SuperchatArchiver:
     def __init__(self,vid_id, api_key, gen_WC = False, loop = None):
@@ -34,7 +35,8 @@ class SuperchatArchiver:
                           "£": "GBP",
                           "€": "EUR",
                           "R$": "BRL",
-                          "₹": "INR"}
+                          "₹": "INR",
+                          "\u20b1": "PHP"}
 
         self.metadata = self.get_video_info(self.videoid)
         self.api_points_used += 1.0
@@ -130,6 +132,8 @@ class SuperchatArchiver:
                 await self.log_output("writing to files")
                 f.write(json.dumps(self.dict_list))
                 f.close()
+                if self.chat_err:
+                    self.stats.append(await self.loop.run_in_executor(self.t_pool,recount_money,self.dict_list))
                 f_stats.write(json.dumps([self.videoinfo,self.stats[-1:]]))
                 f_stats.close()
                 if self.chat_err:
