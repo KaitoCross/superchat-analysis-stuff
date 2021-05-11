@@ -151,7 +151,8 @@ class channel_monitor:
 
     def signal_handler(self, sig, frame):
         for stream in self.video_analysis:
-            self.video_analysis[stream].cancel()
+            if stream:
+                self.video_analysis[stream].cancel()
         #self.running = False
         print("cancelled logging")
         print("api points used:", self.api_points_used)
