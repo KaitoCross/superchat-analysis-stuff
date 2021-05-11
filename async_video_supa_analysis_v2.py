@@ -144,7 +144,6 @@ class SuperchatArchiver:
                     await self.loop.run_in_executor(self.t_pool,self.generate_wordcloud,f.name)
             else:
                 await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
-        self.running = False
 
     async def display(self,data,amount):
         if len(data.items) > 0:
