@@ -112,7 +112,7 @@ class SuperchatArchiver:
         f = open(self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix, "w")
         f_stats = open(self.channel_id + "/vid_stats/" + self.videoid + "_stats.txt"+self.file_suffix, "w")
         had_scs = 0
-        while (repeats < 20 and had_scs < 2):
+        while (repeats < 20 and had_scs < 2 and not self.cancelled):
             self.dict_list.clear()
             self.chat_err = True
             while self.chat_err and not self.cancelled:
@@ -147,14 +147,16 @@ class SuperchatArchiver:
                             exit(-1)
                     if len(self.dict_list) > 0 and not self.chat_err:
                         had_scs += 1
-                        self.videoinfo["retries_of_rerecording"] = had_scs
+                        self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
+                        self.videoinfo["retries_of_rerecording"] = repeats
                     self.videoinfo["startedLogAt"] = analysis_ts.timestamp()
                     self.metadata_list.append(self.videoinfo)
                 else:
                     await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
                     return
-            self.sc_logs_list.append(self.dict_list.copy())
-            if repeats >= 1:
+            if repeats == 0 or len(self.dict_list) > 0 or repeats >= 20 or self.cancelled:
+                self.sc_logs_list.append(self.dict_list.copy())
+            if repeats >= 1 and not self.cancelled:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
             repeats += 1
@@ -167,7 +169,10 @@ class SuperchatArchiver:
         self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, merged_sc_logs))
         f_stats.write(json.dumps([self.metadata_list[0], self.stats[-1]]))
         f_stats.close()
-        if not self.chat_err and self.gen_wc and len(self.dict_list) > 0 and repeats == 1:
+        if self.cancelled:
+            os.rename(f.name, f.name+".cancelled")
+            os.rename(f_stats.name, f_stats.name + ".cancelled")
+        if not self.chat_err and self.gen_wc and len(self.dict_list) > 0 and repeats >= 1 and not self.cancelled:
             await self.loop.run_in_executor(self.t_pool, self.generate_wordcloud, merged_sc_logs)
 
     async def display(self,data,amount):
