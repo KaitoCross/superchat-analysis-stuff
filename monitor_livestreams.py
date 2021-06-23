@@ -59,7 +59,7 @@ class channel_monitor:
                 for stream in list(self.video_analysis.keys()):
                     if self.video_analysis[stream] is None and stream not in self.analyzed_streams: #because YouTube lists past streams as "upcoming" for a while after stream ends
                         try:
-                            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".test-stream-recording2.txt")
+                            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".sc-monitor.txt")
                             asyncio.ensure_future(self.video_analysis[stream].main())
                             self.analyzed_streams.append(stream)
                         except ValueError: #for some godforsaken reason, the YouTubeDataApi object throws a ValueError
