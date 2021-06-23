@@ -1,4 +1,4 @@
-from async_video_supa_analysis_v2 import SuperchatArchiver
+from async_record_running_livestream_superchats import SuperchatArchiver
 from youtube_api import YouTubeDataAPI
 import argparse, time, os, asyncio, pytz, logging, signal, sys
 from datetime import datetime, timezone, timedelta
@@ -59,7 +59,7 @@ class channel_monitor:
                 for stream in list(self.video_analysis.keys()):
                     if self.video_analysis[stream] is None and stream not in self.analyzed_streams: #because YouTube lists past streams as "upcoming" for a while after stream ends
                         try:
-                            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key)
+                            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".test-stream-recording2.txt")
                             asyncio.ensure_future(self.video_analysis[stream].main())
                             self.analyzed_streams.append(stream)
                         except ValueError: #for some godforsaken reason, the YouTubeDataApi object throws a ValueError
@@ -167,9 +167,9 @@ if __name__ =='__main__':
     print('# of channels bein watched:',max_watched_channels)
     monitor = channel_monitor(chan_ids,args.pts)
     loop = asyncio.get_event_loop()
-    loop.set_debug(True)
-    logging.getLogger("asyncio").setLevel(logging.INFO)
-    logging.basicConfig(level=logging.INFO)
+    #loop.set_debug(True)
+    #logging.getLogger("asyncio").setLevel(logging.INFO)
+    #logging.basicConfig(level=logging.INFO)
     try:
         loop.run_until_complete(monitor.main())
     except asyncio.CancelledError:

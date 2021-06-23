@@ -5,7 +5,9 @@ def merge_logs(old_sc_log, new_sc_log):
 	merged_sc_log = old_sc_log.copy()
 	identical_msgs = 0
 	new_msgs = 0
+	processed = 0
 	for new_entry in new_sc_log:
+		processed += 1
 		searchres = list(filter(lambda logentry: logentry['time'] == new_entry['time'] and logentry['userid'] == new_entry['userid'] and logentry['message'] == new_entry['message'], old_sc_log))
 		if searchres:
 			identical_msgs += 1
@@ -13,6 +15,7 @@ def merge_logs(old_sc_log, new_sc_log):
 			print("New message:",new_entry)
 			merged_sc_log.append(new_entry)
 			new_msgs += 1
+	print('messages processed:',processed)
 	print('identical msgs:', identical_msgs)
 	print('new msgs:', new_msgs)
 	return merged_sc_log
@@ -31,11 +34,11 @@ def recount_money(sc_log):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument('old_superchat_file', metavar='vidID', type=str,
+	parser.add_argument('old_superchat_file', metavar='oldSClog', type=str,
 						help='Old superchat file')
-	parser.add_argument('old_stats_file', metavar='vidID', type=str,
+	parser.add_argument('old_stats_file', metavar='oldStats', type=str,
 						help='Old superchat stats file file')
-	parser.add_argument('new_superchat_file', metavar='chanID', type=str,
+	parser.add_argument('new_superchat_file', metavar='newSClog', type=str,
 						help='new superchat file (contains the messages that need to be merged into the old file)')
 	args = parser.parse_args()
 	old_sc_path = args.old_superchat_file
