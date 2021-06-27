@@ -26,6 +26,7 @@ They also save some metadata about the stream (like title, channel, start & end 
 The stored data is JSON formatted.
 
 ## making a superchat wordcloud
+You need to install mecab before using this script.
 usage: `python3 sc_wordcloud.py path_to_superchat_log_file path_to_mask_image`  
 It generates a word cloud from a superchat log in the shape of the object in the mask image and saves a picture of the word cloud in the folder of the superchat log file. The object must be coloured. The background of the object must be pure white - all purely white areas will be detected as background.  
 
