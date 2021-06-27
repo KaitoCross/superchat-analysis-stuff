@@ -148,8 +148,8 @@ class SuperchatArchiver:
                     if len(self.dict_list) > 0 and not self.chat_err:
                         had_scs += 1
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
-                        self.videoinfo["retries_of_rerecording"] = repeats
                     self.videoinfo["startedLogAt"] = analysis_ts.timestamp()
+                    self.videoinfo["retries_of_rerecording"] = repeats
                     self.metadata_list.append(self.videoinfo)
                 else:
                     await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
