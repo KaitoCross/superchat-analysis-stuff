@@ -8,10 +8,11 @@ In order to track the activity of the channel, we rely on the YouTube Data API v
 When it detects a planned livestream, it will start recording Superchats before the livestream starts. Once it ends, it will try to re-record superchats from the archive of the video in order to retrieve potentially previously unrecorded superchats. It automatically adds those to the statistics and logs.
 
 ## recording livestream superchats
-usage: `python3 async_video_supa_analysis_v2.py video_ID`  
+usage: `python3 async_record_running_livestream_superchats.py video_ID`  
 This can be used to record superchats from ongoing & planned livestreams & premieres as well as from broadcast/livestream recordings as long as the chat (chat replay in case of recording) is available.  
-Please note that YouTube does not conserve all superchats in the chat replays. You can only get all superchats if you record during (or start recording before) the actual livestream and later record the chat replay after the stream finishes. You need to merge the two logs afterwards. `merge_sc_logs_v2.py` helps doing that.
+When it detects a planned or running livestream, it will start recording Superchats from the ongoing chat immediately. Once it ends, it will try to re-record superchats from the archive of the livestream in order to retrieve potentially previously unrecorded superchats. It automatically adds those to the statistics and logs.
 This script also fetches some metadata of the stream, for which it needs the same API key as mentioned above in the same text file.  
+If you add ` -wc` to the command, it will automatically generate a wordcloud after the recording is finished.
 
 ## Which information regarding the superchats will be recorded
 1. timestamp of message

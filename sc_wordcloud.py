@@ -1,14 +1,10 @@
-import argparse, os, json
+import argparse, os, json, many_stop_words, collections, six
 from wordcloud import WordCloud, STOPWORDS
 import matplotlib.pyplot as plt
-import os, json
 import numpy as np
 from PIL import Image
 from pathlib import Path
 from mecabwrap import do_mecab
-import many_stop_words
-import collections
-import six
 
 class superchat_wordcloud:
     def __init__(self, logpath, mask_img_path = None, targetDir = "./", font=None, logname = "unnamed"):
