@@ -1,25 +1,36 @@
 import argparse, os, json
 from wordcloud import WordCloud, STOPWORDS
 import matplotlib.pyplot as plt
-import os
+import os, json
 import numpy as np
 from PIL import Image
 from pathlib import Path
 from mecabwrap import do_mecab
 import many_stop_words
+import collections
+import six
 
 class superchat_wordcloud:
-    def __init__(self, logpath, mask_img_path = None, targetDir = "./", font=None):
-        self.logpath = Path(logpath)
+    def __init__(self, logpath, mask_img_path = None, targetDir = "./", font=None, logname = "unnamed"):
+        if isinstance(logpath, six.string_types):
+            self.logpath = Path(logpath)
+            self.sc_log_file = open(self.logpath, encoding='utf-8')
+            self.sc_log = json.load(self.sc_log_file)
+        elif self.iterable(logpath):
+            self.sc_log = logpath
+            self.logpath = logname
+        else:
+            self.sc_log = []
         self.font = font
-        self.sc_log_file = open(self.logpath, encoding='utf-8')
-        self.sc_log = json.load(self.sc_log_file)
         self.stopwords_file = open("stopwords.txt","r")
         if mask_img_path:
             self.mask_img = Image.open(mask_img_path)
         else:
             self.mask_img = None
         self.target_dir = targetDir
+        
+    def iterable(self,arg):
+        return (isinstance(arg, collections.Iterable) and not isinstance(arg, six.string_types))
 
     def generate(self):
         self.ignored_words=set()
@@ -39,16 +50,16 @@ class superchat_wordcloud:
                 amount_scs += 1
                 if '_' not in superchat["message"]:
                     mecabbed = do_mecab(superchat["message"], '-Owakati')
-                    #print(mecabbed)
                     longstring += " "+mecabbed
         print("generating wordcloud from %d messages", amount_scs)
         STOPWORDS.update(self.ignored_words)
         wordcloud = WordCloud(font_path = self.font, collocations=False, background_color="white",width=1280, height=720, mask = mask).generate(longstring)
-        #print(wordcloud.words_)
-        wordcloud.to_file(self.target_dir+self.logpath.stem+"-wordcloud.png")
-        #plt.imshow(wordcloud, interpolation="bilinear")
-        plt.axis("off")
-        #plt.show()
+        if isinstance(self.logpath,Path):
+            dest_image = self.target_dir+self.logpath.stem+"-wordcloud.png"
+        else: 
+            dest_image = self.target_dir+self.logpath+"-wordcloud.png"
+        wordcloud.to_file(dest_image)
+        
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
