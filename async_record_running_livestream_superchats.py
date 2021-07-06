@@ -1,12 +1,12 @@
-import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib
+import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
 from pytchat import (LiveChatAsync, 
      SuperchatCalculator, SuperChatLogProcessor)
-import concurrent.futures
 from youtube_api import YouTubeDataAPI
 from sc_wordcloud import superchat_wordcloud
 from merge_SC_logs_v2 import recount_money
+from decimal import Decimal
 
 class SuperchatArchiver:
     def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30):
@@ -23,7 +23,7 @@ class SuperchatArchiver:
         self.videoid = vid_id
         self.channel_id = ""
         self.metadata = {}
-        self.videoinfo = {"retries_of_rerecording_had_scs":0}
+        self.videoinfo = {}
         self.donors = {}
         self.stats = []
         self.sc_msgs = set()
@@ -47,13 +47,14 @@ class SuperchatArchiver:
 
         self.metadata = self.get_video_info(self.videoid)
         self.api_points_used += 1.0
-        self.channel_id = self.metadata["channelId"]
         self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
         self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
         self.stats_file = self.channel_id + "/vid_stats/" + self.videoid + "_stats.txt"+self.file_suffix
         self.running = True
         if self.metadata is not None:
             self.videoinfo = self.metadata
+            self.videoinfo["retries_of_rerecording_had_scs"] = 0
+            self.videoinfo["retries_of_rerecording"] = 0
             self.channel_id = self.metadata["channelId"]
         else:
             exit(-1)
@@ -94,18 +95,50 @@ class SuperchatArchiver:
     async def async_get_video_info(self,video_ID:str):
         api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
         self.api_points_used += 1.0
-        if api_metadata:
-            self.channel_id = api_metadata["channelId"]
-            return api_metadata
-        else:
-            return None
+        return api_metadata
 
     def cancel(self):
         self.cancelled = True
 
+    async def update_psql_metadata(self):
+        async with self.conn.transaction():
+            await self.conn.execute(
+                "UPDATE video SET caught_while = $2, live = $3, createddatetime = $4, title = $5,"
+                "retries_of_rerecording = $6, retries_of_rerecording_had_scs = $7 WHERE video_id = $1",
+                self.videoid, self.videoinfo["caught_while"], self.videoinfo["live"], datetime.fromtimestamp(
+                        self.videoinfo["publishDateTime"], timezone.utc),
+                self.videoinfo["title"], self.videoinfo["retries_of_rerecording"],
+                self.videoinfo["retries_of_rerecording_had_scs"])
+            if "scheduledStartTime" in self.videoinfo["liveStreamingDetails"].keys():
+                await self.conn.execute("UPDATE video SET scheduledstarttime = $2 WHERE video_id = $1",
+                                        self.videoid, datetime.fromtimestamp(
+                        self.videoinfo["liveStreamingDetails"]["scheduledStartTime"], timezone.utc))
+            if "actualStartTime" in self.videoinfo["liveStreamingDetails"].keys():
+                await self.conn.execute("UPDATE video SET actualstarttime = $2 WHERE video_id = $1",
+                                        self.videoid, datetime.fromtimestamp(
+                        self.videoinfo["liveStreamingDetails"]["actualStartTime"], timezone.utc))
+            if "actualEndTime" in self.videoinfo["liveStreamingDetails"].keys():
+                await self.conn.execute("UPDATE video SET actualendtime = $2 WHERE video_id = $1",
+                                        self.videoid, datetime.fromtimestamp(
+                        self.videoinfo["liveStreamingDetails"]["actualEndTime"], timezone.utc))
+            if "old_title" in self.videoinfo.keys():
+                await self.conn.execute("UPDATE video SET old_title = $2 WHERE  video_id = $1", self.videoid,
+                                        self.videoinfo["old_title"])
+            if "createdDateTime" in self.videoinfo.keys():
+                await self.conn.execute("UPDATE video SET createddatetime = $2 WHERE video_id = $1",
+                                        self.videoid, datetime.fromtimestamp(self.videoinfo["createdDateTime"],
+                                                                             timezone.utc))
+
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
+        self.conn = await asyncpg.connect('postgresql://postgres@localhost/superchat_data')
+        async with self.conn.transaction():
+            await self.conn.execute("INSERT INTO channel VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+                                    self.channel_id, self.videoinfo["channel"], True)
+            await self.conn.execute("INSERT INTO chan_names VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+                                    self.channel_id, self.videoinfo["channel"],
+                                    datetime.now(tz=pytz.timezone('Europe/Berlin')))
         self.chat_err = True
         repeats = 0
         test_file = pathlib.Path(self.sc_file)
@@ -126,8 +159,15 @@ class SuperchatArchiver:
                     self.stats.clear()
                     self.chat_err = False
                     analysis_ts = datetime.now(tz=pytz.timezone('Europe/Berlin'))
+                    publishtime = datetime.fromtimestamp(self.videoinfo["publishDateTime"],timezone.utc)
+                    async with self.conn.transaction():
+                        await self.conn.execute(
+                            "INSERT INTO video (video_id,channel_id,title,startedlogat) "
+                            "VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
+                            self.videoid, self.videoinfo["id"], self.videoinfo["title"], analysis_ts)
+                    await self.update_psql_metadata()
                     await self.log_output("Started Analysis \#"+str(repeats+1)+" at: "+analysis_ts.isoformat())
-                    await self.log_output("of video " + datetime.fromtimestamp(self.videoinfo["publishDateTime"],timezone.utc).isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
+                    await self.log_output("of video " + publishtime.isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
                     chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()))
@@ -160,6 +200,7 @@ class SuperchatArchiver:
                         self.total_counted_msgs = 0
                     self.videoinfo["startedLogAt"] = analysis_ts.timestamp()
                     self.videoinfo["retries_of_rerecording"] = repeats
+                    await self.update_psql_metadata()
                     self.metadata_list.append(self.videoinfo)
                 else:
                     await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
@@ -204,6 +245,9 @@ class SuperchatArchiver:
     async def display(self,data,amount):
         if len(data.items) > 0:
             start = datetime.now()
+            chatters = []
+            channels = []
+            messages = []
             for c in data.items: #data.items contains superchat messages - save them in list while also saving the calculated
                 #sums in a list
                 if c.type == "superChat" or c.type == "superSticker":
@@ -215,6 +259,8 @@ class SuperchatArchiver:
                     sc_minute = sc_datetime.minute
                     sc_user = c.author.name
                     sc_userid = c.author.channelId
+                    chatters.append((sc_userid,sc_user,sc_datetime))
+                    channels.append((sc_userid, sc_user, False))
                     if sc_userid not in self.donors.keys():
                         self.donors[sc_userid] = {"names":[sc_user],
                                                  "donations": {}}
@@ -227,10 +273,16 @@ class SuperchatArchiver:
                     sc_info = {"time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
                                "hour":sc_hour,"minute":sc_minute, "userid":sc_userid, "message":sc_message,
                                "color":sc_color, "debugtime":sc_datetime.isoformat()}
+                    messages.append((self.videoid,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
                     self.stats.append(amount)
                     self.sc_msgs.add(json.dumps(sc_info))
                     self.total_counted_msgs += 1
             self.msg_counter = amount["amount_sc"]
+            async with self.conn.transaction():
+                await self.conn.executemany("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",channels)
+                await self.conn.executemany("INSERT INTO chan_names(id, name, time_discovered) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", chatters)
+                await self.conn.executemany("INSERT INTO messages(video_id, user_id, message_txt, time_sent, currency, value, color) "
+                                      "VALUES ($1,$2,$3,$4,$5,$6,$7)",messages)
             end = datetime.now()
             await self.log_output(end.isoformat() + ": "+
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
