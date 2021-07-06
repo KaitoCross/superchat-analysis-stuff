@@ -10,6 +10,7 @@ from merge_SC_logs_v2 import recount_money
 
 class SuperchatArchiver:
     def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30):
+        self.total_counted_msgs = 0
         self.file_suffix = file_suffix
         self.minutes_wait = minutes_wait
         self.started_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
@@ -29,6 +30,7 @@ class SuperchatArchiver:
         self.sc_logs_list = []
         self.metadata_list = []
         self.gen_wc = gen_WC
+        self.unique_donors = {}
         self.clean_currency = {"¥": "JPY",
                           "NT$": "TWD",
                           "$": "USD",
@@ -92,8 +94,11 @@ class SuperchatArchiver:
     async def async_get_video_info(self,video_ID:str):
         api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
         self.api_points_used += 1.0
-        self.channel_id = api_metadata["channelId"]
-        return api_metadata
+        if api_metadata:
+            self.channel_id = api_metadata["channelId"]
+            return api_metadata
+        else:
+            return None
 
     def cancel(self):
         self.cancelled = True
@@ -129,10 +134,11 @@ class SuperchatArchiver:
                     while chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
                     newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
-                    if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
-                        await self.log_output(datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()+": Error! Chat monitor ended prematurely!")
-                        await self.log_output(chat.is_alive())
-                        self.chat_err = True
+                    if newmetadata is not None:
+                        if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
+                            await self.log_output(datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()+": Error! Chat monitor ended prematurely!")
+                            await self.log_output(chat.is_alive())
+                            self.chat_err = True
                     if self.videoinfo["caught_while"] in ["upcoming","live"]:
                         #use newer metadata while rescuing certain fields from the old metadata
                         createdDateTime = self.videoinfo["publishDateTime"]
@@ -151,6 +157,7 @@ class SuperchatArchiver:
                     if self.msg_counter > 0 and not self.chat_err:
                         had_scs += 1
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
+                        self.total_counted_msgs = 0
                     self.videoinfo["startedLogAt"] = analysis_ts.timestamp()
                     self.videoinfo["retries_of_rerecording"] = repeats
                     self.metadata_list.append(self.videoinfo)
@@ -165,18 +172,24 @@ class SuperchatArchiver:
         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
         await self.log_output("writing to files")
         proper_sc_list = []
+        unique_currency_donors={}
         for msg in self.sc_msgs:
             msg_loaded = json.loads(msg)
-            donations = self.donors[msg_loaded["userid"]]["donations"].setdefault(msg_loaded["currency"],0)
-            self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]] = donations + 1
+            donations = self.donors[msg_loaded["userid"]]["donations"].setdefault(msg_loaded["currency"],[0,0])
+            self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][0] = donations[0] + 1 #amount of donations
+            self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][1] = donations[1] + msg_loaded["value"] #total amount of money donated
             proper_sc_list.append(msg_loaded)
+            self.unique_donors.setdefault(msg_loaded["currency"], set())
+            self.unique_donors[msg_loaded["currency"]].add(msg_loaded["userid"])
+        for currency in self.unique_donors.keys():
+            unique_currency_donors[currency] = len(self.unique_donors[currency])
         self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
         f = open(self.sc_file, "w")
         f_stats = open(self.stats_file, "w")
         f.write(json.dumps(proper_sc_list))
         print(len(proper_sc_list), "unique messages written")
         f.close()
-        f_stats.write(json.dumps([self.metadata_list[0], self.stats[-1]]))
+        f_stats.write(json.dumps([self.metadata_list[0], self.stats[-1], unique_currency_donors]))
         f_stats.close()
         f_donors = open(self.donor_file,"w")
         f_donors.write(json.dumps(self.donors))
@@ -190,6 +203,7 @@ class SuperchatArchiver:
 
     async def display(self,data,amount):
         if len(data.items) > 0:
+            start = datetime.now()
             for c in data.items: #data.items contains superchat messages - save them in list while also saving the calculated
                 #sums in a list
                 if c.type == "superChat" or c.type == "superSticker":
@@ -215,10 +229,12 @@ class SuperchatArchiver:
                                "color":sc_color, "debugtime":sc_datetime.isoformat()}
                     self.stats.append(amount)
                     self.sc_msgs.add(json.dumps(sc_info))
+                    self.total_counted_msgs += 1
             self.msg_counter = amount["amount_sc"]
-            await self.log_output(
+            end = datetime.now()
+            await self.log_output(end.isoformat() + ": "+
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
-                str(self.msg_counter))
+                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " took "+ str((end-start).total_seconds()*1000)+" ms")
 
     def generate_wordcloud(self,log):
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)

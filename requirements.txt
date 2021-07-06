@@ -9,3 +9,4 @@ aiohttp~=3.7.4.post0
 isodate~=0.6.0
 mecabwrap~=0.3.2
 many-stop-words~=0.2.2
+youtube-data-api~=0.0.20
