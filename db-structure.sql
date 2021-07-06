@@ -27,7 +27,7 @@ CREATE TABLE video(
     retries_of_rerecording integer,
     retries_of_rerecording_had_scs integer,
     PRIMARY KEY (video_id),
-    CONSTRAINT chan_id FOREIGN KEY (channel_id) REFERENCES video(video_id)
+    CONSTRAINT chan_id FOREIGN KEY (channel_id) REFERENCES channel(id)
 );
 CREATE TABLE messages(
     video_id varchar,
