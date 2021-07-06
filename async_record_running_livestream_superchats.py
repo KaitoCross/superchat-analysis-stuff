@@ -135,7 +135,9 @@ class SuperchatArchiver:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
-        self.conn = await asyncpg.connect('postgresql://postgres@localhost/superchat_data')
+        pgsql_config_file = open("postgres-config.json")
+        pgsql_creds = json.load(pgsql_config_file)
+        self.conn = await asyncpg.connect('postgresql://'+pgsql_creds["username"]+'@localhost/'+pgsql_creds["database"])
         self.insert_channels = await self.conn.prepare("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) "
                                                        "ON CONFLICT DO NOTHING")
         self.channel_name_history = await self.conn.prepare("INSERT INTO chan_names(id, name, time_discovered) "

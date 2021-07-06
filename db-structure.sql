@@ -1,3 +1,6 @@
+
+CREATE DATABASE superchat_data;
+
 CREATE TABLE channel(
     id varchar,
     name varchar,

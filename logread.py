@@ -55,11 +55,9 @@ if __name__ == "__main__":
     parser.add_argument('basepath', metavar='N', type=str,
                         help='superchat log', default='')
     args = parser.parse_args()
-    #a = SuperchatLog(args.vid_stat, args.sc_log)
-    conn = psycopg2.connect("dbname=superchat_data user=postgres")
-    #print(a.channelId,a.channelName,a.videoid,a.videotitle, a.liveStreamingDetails, a.published)
-    #print(a.chatlog())
-    #print(a.usernamelog())
+    pgsql_config_file = open("postgres-config.json")
+    pgsql_creds = json.load(pgsql_config_file)
+    conn = psycopg2.connect("dbname="+pgsql_creds["database"]+" user="+pgsql_creds["username"])
     p = pathlib.Path(args.basepath)
     cur = conn.cursor()
     folders = [x for x in p.iterdir() if x.is_dir() and "UC" in x.parts[-1]]
