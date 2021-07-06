@@ -133,6 +133,13 @@ class SuperchatArchiver:
         if not self.loop:
             self.loop = asyncio.get_running_loop()
         self.conn = await asyncpg.connect('postgresql://postgres@localhost/superchat_data')
+        self.insert_channels = await self.conn.prepare("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) "
+                                                       "ON CONFLICT DO NOTHING")
+        self.channel_name_history = await self.conn.prepare("INSERT INTO chan_names(id, name, time_discovered) "
+                                                            "VALUES ($1,$2,$3) ON CONFLICT DO NOTHING")
+        self.insert_messages = await self.conn.prepare("INSERT INTO messages(video_id, user_id, message_txt, "
+                                                       "time_sent, currency, value, color) "
+                                                       "VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING")
         async with self.conn.transaction():
             await self.conn.execute("INSERT INTO channel VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
                                     self.channel_id, self.videoinfo["channel"], True)
@@ -164,7 +171,7 @@ class SuperchatArchiver:
                         await self.conn.execute(
                             "INSERT INTO video (video_id,channel_id,title,startedlogat) "
                             "VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
-                            self.videoid, self.videoinfo["id"], self.videoinfo["title"], analysis_ts)
+                            self.videoid, self.videoinfo["channelId"], self.videoinfo["title"], analysis_ts)
                     await self.update_psql_metadata()
                     await self.log_output("Started Analysis \#"+str(repeats+1)+" at: "+analysis_ts.isoformat())
                     await self.log_output("of video " + publishtime.isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
@@ -279,10 +286,9 @@ class SuperchatArchiver:
                     self.total_counted_msgs += 1
             self.msg_counter = amount["amount_sc"]
             async with self.conn.transaction():
-                await self.conn.executemany("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",channels)
-                await self.conn.executemany("INSERT INTO chan_names(id, name, time_discovered) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", chatters)
-                await self.conn.executemany("INSERT INTO messages(video_id, user_id, message_txt, time_sent, currency, value, color) "
-                                      "VALUES ($1,$2,$3,$4,$5,$6,$7)",messages)
+                await self.insert_channels.executemany(channels)
+                await self.channel_name_history.executemany(chatters)
+                await self.insert_messages.executemany(messages)
             end = datetime.now()
             await self.log_output(end.isoformat() + ": "+
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
