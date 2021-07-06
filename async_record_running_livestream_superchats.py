@@ -124,6 +124,9 @@ class SuperchatArchiver:
             if "old_title" in self.videoinfo.keys():
                 await self.conn.execute("UPDATE video SET old_title = $2 WHERE  video_id = $1", self.videoid,
                                         self.videoinfo["old_title"])
+            if "length" in self.videoinfo.keys():
+                await self.conn.execute("UPDATE video SET length = $2 WHERE  video_id = $1", self.videoid,
+                                        self.videoinfo["length"])
             if "createdDateTime" in self.videoinfo.keys():
                 await self.conn.execute("UPDATE video SET createddatetime = $2 WHERE video_id = $1",
                                         self.videoid, datetime.fromtimestamp(self.videoinfo["createdDateTime"],

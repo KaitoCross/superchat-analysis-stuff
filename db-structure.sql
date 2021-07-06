@@ -18,6 +18,7 @@ CREATE TABLE video(
     caught_while varchar,
     live varchar,
     old_title varchar,
+    length bigint,
     createdDateTime timestamptz,
     publishDateTime timestamptz,
     startedLogAt timestamptz,
