@@ -47,9 +47,6 @@ class SuperchatArchiver:
 
         self.metadata = self.get_video_info(self.videoid)
         self.api_points_used += 1.0
-        self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
-        self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
-        self.stats_file = self.channel_id + "/vid_stats/" + self.videoid + "_stats.txt"+self.file_suffix
         self.running = True
         if self.metadata is not None:
             self.videoinfo = self.metadata
@@ -58,6 +55,9 @@ class SuperchatArchiver:
             self.channel_id = self.metadata["channelId"]
         else:
             exit(-1)
+        self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
+        self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
+        self.stats_file = self.channel_id + "/vid_stats/" + self.videoid + "_stats.txt"+self.file_suffix
         print(self.metadata, self.channel_id, self.videoid, self.file_suffix)
         pathlib.Path('./' + self.channel_id + '/vid_stats/donors').mkdir(parents=True, exist_ok=True)
         pathlib.Path('./' + self.channel_id + '/sc_logs').mkdir(parents=True, exist_ok=True)
@@ -196,8 +196,12 @@ class SuperchatArchiver:
                         createdDateTime = self.videoinfo["publishDateTime"]
                         caught_while = self.videoinfo["caught_while"]
                         old_title = self.videoinfo["title"]
+                        retries_w_scs = self.videoinfo["retries_of_rerecording_had_scs"]
+                        retries_total = self.videoinfo["retries_of_rerecording"]
                         if newmetadata is not None:
                             self.videoinfo = newmetadata
+                            self.videoinfo["retries_of_rerecording_had_scs"] = retries_w_scs
+                            self.videoinfo["retries_of_rerecording"] = retries_total
                             self.videoinfo["createdDateTime"] = createdDateTime
                             self.videoinfo["caught_while"] = caught_while
                             if self.videoinfo["title"] != old_title:

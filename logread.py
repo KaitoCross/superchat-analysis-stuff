@@ -63,16 +63,14 @@ if __name__ == "__main__":
     folders = [x for x in p.iterdir() if x.is_dir() and "UC" in x.parts[-1]]
     for channel in folders:
         statfolder = channel / "vid_stats"
+        print(channel)
         statfiles = [x for x in statfolder.iterdir() if x.is_file() and ".txt" in x.parts[-1]]
         for s_file in statfiles:
             l_f_name = s_file.parts[-1].replace("_stats","")
             lf_path = channel / "sc_logs" / l_f_name
-            print(lf_path)
-            print(s_file)
             if lf_path.is_file():
                 if lf_path.stat().st_size > 2:
                     a = SuperchatLog(s_file, lf_path)
-                    print(a.channelId, a.channelName, a.videoid, a.videotitle, a.liveStreamingDetails, a.published)
                     cur.execute("INSERT INTO channel VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",(a.channelId,a.channelName,True))
                     cur.execute(
                         "INSERT INTO video (live, createddatetime, title, video_id, channel_id) "
@@ -105,4 +103,3 @@ if __name__ == "__main__":
     conn.commit()
     cur.close()
     conn.close()
-    #print(folders)
