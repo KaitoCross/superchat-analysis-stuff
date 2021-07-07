@@ -7,7 +7,7 @@ from aiohttp_requests import requests
 import math
 
 class channel_monitor:
-    def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath):
+    def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt"):
         self.running = True
         self.reset_used = False
         signal.signal(signal.SIGUSR1, self.signal_handler)
