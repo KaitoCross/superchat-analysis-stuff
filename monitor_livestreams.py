@@ -7,12 +7,12 @@ from aiohttp_requests import requests
 import math
 
 class channel_monitor:
-    def __init__(self,chan_list,api_pts_used = 0.0):
+    def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath):
         self.running = True
         self.reset_used = False
         signal.signal(signal.SIGUSR1, self.signal_handler)
         self.yt_api_key = "####"
-        keyfile = open("yt_api_key.txt", "r")
+        keyfile = open(keyfilepath, "r")
         self.yt_api_key = keyfile.read()
         keyfile.close()
         self.api_points_used = api_pts_used
@@ -161,11 +161,17 @@ if __name__ =='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('channel_id', metavar='N', type=str, nargs='+', help='The YouTube channel IDs')
     parser.add_argument('--pts','-p', action='store', type=int, default=0, help='The amout of YouTube API points already used today')
+    parser.add_argument('--keyfile','-k', action='store', type=str, default="", help='The file with the API key')
     args = parser.parse_args()
     chan_ids = args.channel_id
     max_watched_channels = len(chan_ids)
     print('# of channels bein watched:',max_watched_channels)
-    monitor = channel_monitor(chan_ids,args.pts)
+    keyfilepath = str()
+    if args.keyfile:
+        keyfilepath = args.keyfile
+    else:
+        keyfilepath = "yt_api_key.txt"
+    monitor = channel_monitor(chan_ids,args.pts,keyfilepath)
     loop = asyncio.get_event_loop()
     #loop.set_debug(True)
     #logging.getLogger("asyncio").setLevel(logging.INFO)
