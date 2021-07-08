@@ -90,6 +90,7 @@ class SuperchatArchiver:
         except Exception as e:
             print(self.videoid)
             print(e)
+            print(response)
             return None
 
     async def async_get_video_info(self,video_ID:str):
@@ -207,7 +208,7 @@ class SuperchatArchiver:
                             if self.videoinfo["title"] != old_title:
                                 self.videoinfo["old_title"] = old_title
                         else:
-                            exit(-1)
+                            print("couldn't retrieve new metadata for",self.videoid,old_title)
                     else:
                         caughtlive = False
                     if self.msg_counter > 0 and not self.chat_err:
