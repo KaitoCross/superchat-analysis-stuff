@@ -19,7 +19,7 @@ class superchat_wordcloud:
             self.sc_log = []
         self.font = font
         self.stopwords_file = open("stopwords.txt","r")
-        if mask_img_path:
+        if mask_img_path and mask_img_path != "None":
             self.mask_img = Image.open(mask_img_path)
         else:
             self.mask_img = None

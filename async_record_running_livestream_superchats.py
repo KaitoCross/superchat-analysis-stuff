@@ -132,6 +132,10 @@ class SuperchatArchiver:
                 await self.conn.execute("UPDATE video SET createddatetime = $2 WHERE video_id = $1",
                                         self.videoid, datetime.fromtimestamp(self.videoinfo["createdDateTime"],
                                                                              timezone.utc))
+            if "publishDateTime" in self.videoinfo.keys():
+                await self.conn.execute("UPDATE video SET publishdatetime = $2 WHERE video_id = $1",
+                                        self.videoid, datetime.fromtimestamp(self.videoinfo["publishDateTime"],
+                                                                             timezone.utc))
 
     async def main(self):
         if not self.loop:
