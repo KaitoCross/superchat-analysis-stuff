@@ -86,9 +86,14 @@ class channel_monitor:
                 # trying not to exceed the 24h API usage limits while also accounting for time already passed since last
                 # API point reset (which happens at midnight pacific time)
                 self.requests_left = math.floor((self.api_points - self.api_points_used) / (self.max_watched_channels * self.cost_per_request))
-                temp = await self.time_until_specified_hour(0,pytz.timezone('America/Los_Angeles'))
-                self.sleep_dur = temp.total_seconds()/self.requests_left
-                resume_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))+timedelta(seconds=self.sleep_dur)
+                if self.requests_left > 0:
+                    temp = await self.time_until_specified_hour(0,pytz.timezone('America/Los_Angeles'))
+                    self.sleep_dur = temp.total_seconds()/self.requests_left
+                    resume_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))+timedelta(seconds=self.sleep_dur)
+                else:
+                    resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
+                    t_delta = resume_at-time_now
+                    self.sleep_dur = t_delta.total_seconds()
             print('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
             print('approx. '+str(self.api_points-self.api_points_used)+' points left')
             print(self.requests_left, "requests left")
