@@ -91,6 +91,7 @@ class channel_monitor:
                     self.sleep_dur = temp.total_seconds()/self.requests_left
                     resume_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))+timedelta(seconds=self.sleep_dur)
                 else:
+                    time_now = datetime.now(tz=pytz.timezone('America/Los_Angeles'))
                     resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
                     t_delta = resume_at-time_now
                     self.sleep_dur = t_delta.total_seconds()
