@@ -13,7 +13,7 @@ class SuperchatArchiver:
         self.total_counted_msgs = 0
         self.file_suffix = file_suffix
         self.minutes_wait = minutes_wait
-        self.started_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
+        self.started_at = None
         self.ended_at = None
         self.cancelled = False
         self.loop = loop
@@ -136,6 +136,9 @@ class SuperchatArchiver:
                 await self.conn.execute("UPDATE video SET publishdatetime = $2 WHERE video_id = $1",
                                         self.videoid, datetime.fromtimestamp(self.videoinfo["publishDateTime"],
                                                                              timezone.utc))
+            if "endedLogAt" in self.videoinfo.keys():
+                await self.conn.execute("UPDATE video SET endedLogAt = $2 WHERE video_id = $1",
+                                        self.videoid, self.ended_at)
 
     async def main(self):
         if not self.loop:
@@ -175,15 +178,15 @@ class SuperchatArchiver:
                 if "liveStreamingDetails" in self.videoinfo.keys() or self.videoinfo["live"] != "none" or repeats >= 1:
                     self.stats.clear()
                     self.chat_err = False
-                    analysis_ts = datetime.now(tz=pytz.timezone('Europe/Berlin'))
+                    self.started_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                     publishtime = datetime.fromtimestamp(self.videoinfo["publishDateTime"],timezone.utc)
                     async with self.conn.transaction():
                         await self.conn.execute(
                             "INSERT INTO video (video_id,channel_id,title,startedlogat) "
                             "VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
-                            self.videoid, self.videoinfo["channelId"], self.videoinfo["title"], analysis_ts)
+                            self.videoid, self.videoinfo["channelId"], self.videoinfo["title"], self.started_at)
                     await self.update_psql_metadata()
-                    await self.log_output("Started Analysis \#"+str(repeats+1)+" at: "+analysis_ts.isoformat())
+                    await self.log_output("Started Analysis #"+str(repeats+1)+" at: "+self.started_at.isoformat())
                     await self.log_output("of video " + publishtime.isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
@@ -196,6 +199,9 @@ class SuperchatArchiver:
                             await self.log_output(datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()+": Error! Chat monitor ended prematurely!")
                             await self.log_output(chat.is_alive())
                             self.chat_err = True
+                        if repeats == 0 and not self.cancelled and not self.chat_err:
+                            self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
+                            newmetadata["endedLogAt"] = self.ended_at.timestamp()
                     if self.videoinfo["caught_while"] in ["upcoming","live"]:
                         #use newer metadata while rescuing certain fields from the old metadata
                         createdDateTime = self.videoinfo["publishDateTime"]
@@ -219,7 +225,7 @@ class SuperchatArchiver:
                         had_scs += 1
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
                         self.total_counted_msgs = 0
-                    self.videoinfo["startedLogAt"] = analysis_ts.timestamp()
+                    self.videoinfo["startedLogAt"] = self.started_at.timestamp()
                     self.videoinfo["retries_of_rerecording"] = repeats
                     await self.update_psql_metadata()
                     self.metadata_list.append(self.videoinfo)
@@ -231,7 +237,6 @@ class SuperchatArchiver:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
         self.running = False
-        self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
         await self.log_output("writing to files")
         proper_sc_list = []
         unique_currency_donors={}

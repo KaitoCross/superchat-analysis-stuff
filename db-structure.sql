@@ -25,6 +25,7 @@ CREATE TABLE video(
     createdDateTime timestamptz,
     publishDateTime timestamptz,
     startedLogAt timestamptz,
+    endedLogAt timestamptz,
     scheduledStartTime timestamptz,
     actualStartTime timestamptz,
     actualEndTime timestamptz,
