@@ -5,6 +5,7 @@ CREATE TABLE channel(
     id varchar,
     name varchar,
     tracked bool,
+    color char(6),
     PRIMARY KEY(id)
 );
 CREATE TABLE chan_names(
