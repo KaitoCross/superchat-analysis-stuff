@@ -1,8 +1,8 @@
+# -*- coding: utf-8 -*-
 import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
-from pytchat import (LiveChatAsync, 
-     SuperchatCalculator, SuperChatLogProcessor)
+from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor)
 from youtube_api import YouTubeDataAPI
 from sc_wordcloud import superchat_wordcloud
 from merge_SC_logs_v2 import recount_money
@@ -53,8 +53,6 @@ class SuperchatArchiver:
             self.videoinfo["retries_of_rerecording_had_scs"] = 0
             self.videoinfo["retries_of_rerecording"] = 0
             self.channel_id = self.metadata["channelId"]
-        else:
-            exit(-1)
         self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
         self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
         self.stats_file = self.channel_id + "/vid_stats/" + self.videoid + "_stats.txt"+self.file_suffix
@@ -143,6 +141,8 @@ class SuperchatArchiver:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
+        if not self.videoinfo:
+            return
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = "localhost", database = pgsql_creds["database"])
@@ -193,15 +193,15 @@ class SuperchatArchiver:
                     chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()))
                     while chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
+                    if repeats == 0 and not self.cancelled and not self.chat_err:
+                        self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
+                        self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
                     newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
                     if newmetadata is not None:
                         if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
                             await self.log_output(datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()+": Error! Chat monitor ended prematurely!")
                             await self.log_output(chat.is_alive())
                             self.chat_err = True
-                        if repeats == 0 and not self.cancelled and not self.chat_err:
-                            self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
-                            newmetadata["endedLogAt"] = self.ended_at.timestamp()
                     if self.videoinfo["caught_while"] in ["upcoming","live"]:
                         #use newer metadata while rescuing certain fields from the old metadata
                         createdDateTime = self.videoinfo["publishDateTime"]
@@ -211,6 +211,7 @@ class SuperchatArchiver:
                         retries_total = self.videoinfo["retries_of_rerecording"]
                         if newmetadata is not None:
                             self.videoinfo = newmetadata
+                            self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
                             self.videoinfo["retries_of_rerecording_had_scs"] = retries_w_scs
                             self.videoinfo["retries_of_rerecording"] = retries_total
                             self.videoinfo["createdDateTime"] = createdDateTime
