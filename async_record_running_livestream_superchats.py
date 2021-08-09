@@ -64,6 +64,7 @@ class SuperchatArchiver:
         return self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
 
     def get_video_info(self,video_ID:str):
+        response = None
         try:
             response = self.api.get_video_metadata(video_id=video_ID, parser=None,
                                                    part=["liveStreamingDetails", "contentDetails", "snippet"])
