@@ -194,7 +194,7 @@ class SuperchatArchiver:
                     chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()))
                     while chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
-                    if repeats == 0 and not self.cancelled and not self.chat_err:
+                    if repeats == 0 and not self.chat_err:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
                     newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
