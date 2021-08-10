@@ -172,7 +172,7 @@ class SuperchatArchiver:
         had_scs = 0
         self.msg_counter = 0
         caughtlive = True
-        while (repeats < 20 and had_scs < 2 and not self.cancelled and caughtlive):
+        while (repeats < 48 and had_scs < 2 and not self.cancelled and caughtlive):
             self.msg_counter = 0
             self.chat_err = True
             while self.chat_err and not self.cancelled:
