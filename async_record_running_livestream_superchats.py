@@ -52,6 +52,7 @@ class SuperchatArchiver:
             self.videoinfo = self.metadata
             self.videoinfo["retries_of_rerecording_had_scs"] = 0
             self.videoinfo["retries_of_rerecording"] = 0
+            self.videoPostedAt = self.videoinfo["publishDateTime"]
             self.channel_id = self.metadata["channelId"]
         self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
         self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
@@ -205,7 +206,7 @@ class SuperchatArchiver:
                             self.chat_err = True
                     if self.videoinfo["caught_while"] in ["upcoming","live"]:
                         #use newer metadata while rescuing certain fields from the old metadata
-                        createdDateTime = self.videoinfo["publishDateTime"]
+                        createdDateTime = self.videoPostedAt
                         caught_while = self.videoinfo["caught_while"]
                         old_title = self.videoinfo["title"]
                         retries_w_scs = self.videoinfo["retries_of_rerecording_had_scs"]
