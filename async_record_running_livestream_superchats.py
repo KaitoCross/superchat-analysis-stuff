@@ -128,10 +128,6 @@ class SuperchatArchiver:
             if "length" in self.videoinfo.keys():
                 await self.conn.execute("UPDATE video SET length = $2 WHERE  video_id = $1", self.videoid,
                                         self.videoinfo["length"])
-            if "createdDateTime" in self.videoinfo.keys():
-                await self.conn.execute("UPDATE video SET createddatetime = $2 WHERE video_id = $1",
-                                        self.videoid, datetime.fromtimestamp(self.videoinfo["createdDateTime"],
-                                                                             timezone.utc))
             if "publishDateTime" in self.videoinfo.keys():
                 await self.conn.execute("UPDATE video SET publishdatetime = $2 WHERE video_id = $1",
                                         self.videoid, datetime.fromtimestamp(self.videoinfo["publishDateTime"],
@@ -181,12 +177,12 @@ class SuperchatArchiver:
                     self.stats.clear()
                     self.chat_err = False
                     self.started_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
-                    publishtime = datetime.fromtimestamp(self.videoinfo["publishDateTime"],timezone.utc)
+                    publishtime = datetime.fromtimestamp(self.videoPostedAt,timezone.utc)
                     async with self.conn.transaction():
                         await self.conn.execute(
-                            "INSERT INTO video (video_id,channel_id,title,startedlogat) "
-                            "VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
-                            self.videoid, self.videoinfo["channelId"], self.videoinfo["title"], self.started_at)
+                            "INSERT INTO video (video_id,channel_id,title,startedlogat,createddatetime) "
+                            "VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
+                            self.videoid, self.videoinfo["channelId"], self.videoinfo["title"], self.started_at, publishtime)
                     await self.update_psql_metadata()
                     await self.log_output("Started Analysis #"+str(repeats+1)+" at: "+self.started_at.isoformat())
                     await self.log_output("of video " + publishtime.isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
