@@ -1,14 +1,10 @@
-import argparse, os, json
+import argparse, os, json, many_stop_words, collections, six
 from wordcloud import WordCloud, STOPWORDS
 import matplotlib.pyplot as plt
-import os, json
 import numpy as np
 from PIL import Image
 from pathlib import Path
 from mecabwrap import do_mecab
-import many_stop_words
-import collections
-import six
 
 class superchat_wordcloud:
     def __init__(self, logpath, mask_img_path = None, targetDir = "./", font=None, logname = "unnamed"):
@@ -23,7 +19,7 @@ class superchat_wordcloud:
             self.sc_log = []
         self.font = font
         self.stopwords_file = open("stopwords.txt","r")
-        if mask_img_path:
+        if mask_img_path and mask_img_path != "None":
             self.mask_img = Image.open(mask_img_path)
         else:
             self.mask_img = None
