@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg
+import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
 from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor)
@@ -52,7 +52,7 @@ class SuperchatArchiver:
             self.videoinfo = self.metadata
             self.videoinfo["retries_of_rerecording_had_scs"] = 0
             self.videoinfo["retries_of_rerecording"] = 0
-            self.videoPostedAt = self.videoinfo["publishDateTime"]
+            self.videoPostedAt = copy.deepcopy(self.videoinfo["publishDateTime"])
             self.channel_id = self.metadata["channelId"]
         self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
         self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
@@ -104,10 +104,9 @@ class SuperchatArchiver:
     async def update_psql_metadata(self):
         async with self.conn.transaction():
             await self.conn.execute(
-                "UPDATE video SET caught_while = $2, live = $3, createddatetime = $4, title = $5,"
-                "retries_of_rerecording = $6, retries_of_rerecording_had_scs = $7 WHERE video_id = $1",
-                self.videoid, self.videoinfo["caught_while"], self.videoinfo["live"], datetime.fromtimestamp(
-                        self.videoinfo["publishDateTime"], timezone.utc),
+                "UPDATE video SET caught_while = $2, live = $3, title = $4,"
+                "retries_of_rerecording = $5, retries_of_rerecording_had_scs = $6 WHERE video_id = $1",
+                self.videoid, self.videoinfo["caught_while"], self.videoinfo["live"],
                 self.videoinfo["title"], self.videoinfo["retries_of_rerecording"],
                 self.videoinfo["retries_of_rerecording_had_scs"])
             if "scheduledStartTime" in self.videoinfo["liveStreamingDetails"].keys():
