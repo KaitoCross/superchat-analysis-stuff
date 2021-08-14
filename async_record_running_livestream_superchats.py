@@ -62,7 +62,10 @@ class SuperchatArchiver:
         pathlib.Path('./' + self.channel_id + '/sc_logs').mkdir(parents=True, exist_ok=True)
 
     def __str__(self):
-        return self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
+        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
+    
+    def __repr__(self):
+        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
 
     def get_video_info(self,video_ID:str):
         response = None
