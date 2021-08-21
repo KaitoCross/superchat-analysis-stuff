@@ -11,6 +11,7 @@ from decimal import Decimal
 class SuperchatArchiver:
     def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30):
         self.total_counted_msgs = 0
+        self.max_retry_attempts = 48 + 24
         self.file_suffix = file_suffix
         self.minutes_wait = minutes_wait
         self.started_at = None
@@ -60,6 +61,7 @@ class SuperchatArchiver:
         print(self.metadata, self.channel_id, self.videoid, self.file_suffix)
         pathlib.Path('./' + self.channel_id + '/vid_stats/donors').mkdir(parents=True, exist_ok=True)
         pathlib.Path('./' + self.channel_id + '/sc_logs').mkdir(parents=True, exist_ok=True)
+        self.placeholders = 0
 
     def __str__(self):
         return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
@@ -131,7 +133,7 @@ class SuperchatArchiver:
                 await self.conn.execute("UPDATE video SET length = $2 WHERE  video_id = $1", self.videoid,
                                         self.videoinfo["length"])
             if "publishDateTime" in self.videoinfo.keys():
-                await self.conn.execute("UPDATE video SET publishdatetime = $2 WHERE video_id = $1",
+                await self.conn.execute("UPDATE video SET publishDateTime = $2 WHERE video_id = $1",
                                         self.videoid, datetime.fromtimestamp(self.videoinfo["publishDateTime"],
                                                                              timezone.utc))
             if "endedLogAt" in self.videoinfo.keys():
@@ -171,7 +173,7 @@ class SuperchatArchiver:
         had_scs = 0
         self.msg_counter = 0
         caughtlive = True
-        while (repeats < 48 and had_scs < 2 and not self.cancelled and caughtlive):
+        while (repeats < self.max_retry_attempts and had_scs < 2 and not self.cancelled and caughtlive):
             self.msg_counter = 0
             self.chat_err = True
             while self.chat_err and not self.cancelled:
@@ -276,6 +278,8 @@ class SuperchatArchiver:
             channels = []
             messages = []
             for c in data.items: #data.items contains superchat messages - save them in list while also saving the calculated
+                if c.type == "placeholder":
+                    self.placeholders += 1
                 #sums in a list
                 if c.type == "superChat" or c.type == "superSticker":
                     if c.currency in self.clean_currency.keys():
@@ -312,7 +316,7 @@ class SuperchatArchiver:
             end = datetime.now()
             await self.log_output(end.isoformat() + ": "+
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
-                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " took "+ str((end-start).total_seconds()*1000)+" ms")
+                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
 
     def generate_wordcloud(self,log):
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)
