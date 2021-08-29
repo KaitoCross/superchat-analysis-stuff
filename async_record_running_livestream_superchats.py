@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy
+import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
-from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor)
+from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor,config)
 from youtube_api import YouTubeDataAPI
 from sc_wordcloud import superchat_wordcloud
 from merge_SC_logs_v2 import recount_money
@@ -49,6 +49,7 @@ class SuperchatArchiver:
         self.metadata = self.get_video_info(self.videoid)
         self.api_points_used += 1.0
         self.running = True
+        self.running_chat = None
         if self.metadata is not None:
             self.videoinfo = self.metadata
             self.videoinfo["retries_of_rerecording_had_scs"] = 0
@@ -99,12 +100,15 @@ class SuperchatArchiver:
             return None
 
     async def async_get_video_info(self,video_ID:str):
-        api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
         self.api_points_used += 1.0
+        api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
         return api_metadata
 
     def cancel(self):
         self.cancelled = True
+        if self.running_chat:
+            self.running_chat.terminate()
+        
 
     async def update_psql_metadata(self):
         async with self.conn.transaction():
@@ -192,8 +196,8 @@ class SuperchatArchiver:
                     await self.log_output("of video " + publishtime.isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
-                    chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()))
-                    while chat.is_alive() and not self.cancelled:
+                    self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=config.logger(__name__,logging.DEBUG))
+                    while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
                     if repeats == 0 and not self.chat_err:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
@@ -202,7 +206,7 @@ class SuperchatArchiver:
                     if newmetadata is not None:
                         if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
                             await self.log_output(datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()+": Error! Chat monitor ended prematurely!")
-                            await self.log_output(chat.is_alive())
+                            await self.log_output(self.running_chat.is_alive())
                             self.chat_err = True
                     if self.videoinfo["caught_while"] in ["upcoming","live"]:
                         #use newer metadata while rescuing certain fields from the old metadata
