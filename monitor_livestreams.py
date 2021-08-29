@@ -161,7 +161,7 @@ class channel_monitor:
                 self.video_analysis[stream].cancel()
         #self.running = False
         print("cancelled logging")
-        print("api points used:", self.total_api_points_used())
+        print("api points used:", await self.total_api_points_used())
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()

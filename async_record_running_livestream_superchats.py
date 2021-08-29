@@ -196,7 +196,8 @@ class SuperchatArchiver:
                     await self.log_output("of video " + publishtime.isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
-                    self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=config.logger(__name__,logging.DEBUG))
+                    self.httpclient = httpx.AsyncClient(http2=True)
+                    self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=config.logger(__name__,logging.DEBUG), client = self.httpclient)
                     while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
                     if repeats == 0 and not self.chat_err:
