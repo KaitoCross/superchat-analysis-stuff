@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging
+import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
 from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor,config)
