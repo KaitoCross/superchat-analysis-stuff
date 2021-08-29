@@ -161,7 +161,12 @@ class channel_monitor:
                 self.video_analysis[stream].cancel()
         #self.running = False
         print("cancelled logging")
-        print("api points used:", self.api_points_used)
+        points_used_by_analysis = 0.0
+        for stream in self.video_analysis.keys():
+            if self.video_analysis[stream] is not None:
+                points_used_by_analysis += self.video_analysis[stream].api_points_used
+        pts_used = points_used_by_analysis+self.api_points_used
+        print("api points used:", pts_used)
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()

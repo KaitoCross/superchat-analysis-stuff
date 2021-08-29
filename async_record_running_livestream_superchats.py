@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg
+import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
-from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor)
+from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor,config)
 from youtube_api import YouTubeDataAPI
 from sc_wordcloud import superchat_wordcloud
 from merge_SC_logs_v2 import recount_money
@@ -11,6 +11,7 @@ from decimal import Decimal
 class SuperchatArchiver:
     def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30):
         self.total_counted_msgs = 0
+        self.max_retry_attempts = 48 + 24
         self.file_suffix = file_suffix
         self.minutes_wait = minutes_wait
         self.started_at = None
@@ -48,11 +49,12 @@ class SuperchatArchiver:
         self.metadata = self.get_video_info(self.videoid)
         self.api_points_used += 1.0
         self.running = True
+        self.running_chat = None
         if self.metadata is not None:
             self.videoinfo = self.metadata
             self.videoinfo["retries_of_rerecording_had_scs"] = 0
             self.videoinfo["retries_of_rerecording"] = 0
-            self.videoPostedAt = self.videoinfo["publishDateTime"]
+            self.videoPostedAt = copy.deepcopy(self.videoinfo["publishDateTime"])
             self.channel_id = self.metadata["channelId"]
         self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
         self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
@@ -60,9 +62,13 @@ class SuperchatArchiver:
         print(self.metadata, self.channel_id, self.videoid, self.file_suffix)
         pathlib.Path('./' + self.channel_id + '/vid_stats/donors').mkdir(parents=True, exist_ok=True)
         pathlib.Path('./' + self.channel_id + '/sc_logs').mkdir(parents=True, exist_ok=True)
+        self.placeholders = 0
 
     def __str__(self):
-        return self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
+        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
+    
+    def __repr__(self):
+        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
 
     def get_video_info(self,video_ID:str):
         response = None
@@ -94,20 +100,22 @@ class SuperchatArchiver:
             return None
 
     async def async_get_video_info(self,video_ID:str):
-        api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
         self.api_points_used += 1.0
+        api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
         return api_metadata
 
     def cancel(self):
         self.cancelled = True
+        if self.running_chat:
+            self.running_chat.terminate()
+        
 
     async def update_psql_metadata(self):
         async with self.conn.transaction():
             await self.conn.execute(
-                "UPDATE video SET caught_while = $2, live = $3, createddatetime = $4, title = $5,"
-                "retries_of_rerecording = $6, retries_of_rerecording_had_scs = $7 WHERE video_id = $1",
-                self.videoid, self.videoinfo["caught_while"], self.videoinfo["live"], datetime.fromtimestamp(
-                        self.videoinfo["publishDateTime"], timezone.utc),
+                "UPDATE video SET caught_while = $2, live = $3, title = $4,"
+                "retries_of_rerecording = $5, retries_of_rerecording_had_scs = $6 WHERE video_id = $1",
+                self.videoid, self.videoinfo["caught_while"], self.videoinfo["live"],
                 self.videoinfo["title"], self.videoinfo["retries_of_rerecording"],
                 self.videoinfo["retries_of_rerecording_had_scs"])
             if "scheduledStartTime" in self.videoinfo["liveStreamingDetails"].keys():
@@ -129,7 +137,7 @@ class SuperchatArchiver:
                 await self.conn.execute("UPDATE video SET length = $2 WHERE  video_id = $1", self.videoid,
                                         self.videoinfo["length"])
             if "publishDateTime" in self.videoinfo.keys():
-                await self.conn.execute("UPDATE video SET publishdatetime = $2 WHERE video_id = $1",
+                await self.conn.execute("UPDATE video SET publishDateTime = $2 WHERE video_id = $1",
                                         self.videoid, datetime.fromtimestamp(self.videoinfo["publishDateTime"],
                                                                              timezone.utc))
             if "endedLogAt" in self.videoinfo.keys():
@@ -169,7 +177,7 @@ class SuperchatArchiver:
         had_scs = 0
         self.msg_counter = 0
         caughtlive = True
-        while (repeats < 48 and had_scs < 2 and not self.cancelled and caughtlive):
+        while (repeats < self.max_retry_attempts and had_scs < 2 and not self.cancelled and caughtlive):
             self.msg_counter = 0
             self.chat_err = True
             while self.chat_err and not self.cancelled:
@@ -188,8 +196,9 @@ class SuperchatArchiver:
                     await self.log_output("of video " + publishtime.isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
-                    chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()))
-                    while chat.is_alive() and not self.cancelled:
+                    self.httpclient = httpx.AsyncClient(http2=True)
+                    self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=config.logger(__name__,logging.DEBUG), client = self.httpclient)
+                    while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
                     if repeats == 0 and not self.chat_err:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
@@ -198,7 +207,7 @@ class SuperchatArchiver:
                     if newmetadata is not None:
                         if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
                             await self.log_output(datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()+": Error! Chat monitor ended prematurely!")
-                            await self.log_output(chat.is_alive())
+                            await self.log_output(self.running_chat.is_alive())
                             self.chat_err = True
                     if self.videoinfo["caught_while"] in ["upcoming","live"]:
                         #use newer metadata while rescuing certain fields from the old metadata
@@ -274,6 +283,8 @@ class SuperchatArchiver:
             channels = []
             messages = []
             for c in data.items: #data.items contains superchat messages - save them in list while also saving the calculated
+                if c.type == "placeholder":
+                    self.placeholders += 1
                 #sums in a list
                 if c.type == "superChat" or c.type == "superSticker":
                     if c.currency in self.clean_currency.keys():
@@ -310,7 +321,7 @@ class SuperchatArchiver:
             end = datetime.now()
             await self.log_output(end.isoformat() + ": "+
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
-                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " took "+ str((end-start).total_seconds()*1000)+" ms")
+                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
 
     def generate_wordcloud(self,log):
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)
