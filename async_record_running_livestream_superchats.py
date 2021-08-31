@@ -203,6 +203,7 @@ class SuperchatArchiver:
                     if repeats == 0 and not self.chat_err:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
+                    self.httpclient.aclose()
                     newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
                     if newmetadata is not None:
                         if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
