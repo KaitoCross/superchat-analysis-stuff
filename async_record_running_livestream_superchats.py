@@ -56,6 +56,22 @@ class SuperchatArchiver:
             self.videoinfo["retries_of_rerecording"] = 0
             self.videoPostedAt = copy.deepcopy(self.videoinfo["publishDateTime"])
             self.channel_id = self.metadata["channelId"]
+        self.skeleton_dict = {"channel": None,
+                              "channelId": None,
+                              "id": None,
+                              "title": None,
+                              "live": None,
+                              "caught_while": None,
+                              "publishDateTime": None,
+                              "length": None,
+                              "endedLogAt": None,
+                              "retries_of_rerecording": None,
+                              "retries_of_rerecording_had_scs": None,
+                              "createdDateTime": None,
+                              "liveStreamingDetails":{"scheduledStartTime": None,
+                                                      "actualStartTime": None,
+                                                      "actualEndTime": None}
+                             }
         self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
         self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
         self.stats_file = self.channel_id + "/vid_stats/" + self.videoid + "_stats.txt"+self.file_suffix
@@ -143,15 +159,49 @@ class SuperchatArchiver:
             if "endedLogAt" in self.videoinfo.keys():
                 await self.conn.execute("UPDATE video SET endedLogAt = $2 WHERE video_id = $1",
                                         self.videoid, self.ended_at)
+                
+    async def already_done(self,conn):
+        row = await conn.fetchrow('SELECT retries_of_rerecording_had_scs FROM video WHERE video_id = $1', self.videoid)
+        successful_sc_recordings = row["retries_of_rerecording_had_scs"] if row else 0
+        test_file = pathlib.Path(self.sc_file)
+        if test_file.is_file():
+            if test_file.stat().st_size > 2:
+                file_has_content = True
+        if successful_sc_recordings >= 2 and file_has_content:
+            return True, test_file.stat().st_size, successful_sc_recordings
+        else:
+            return False, 0, successful_sc_recordings
 
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
-        if not self.videoinfo:
-            return
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
+        old_meta_row = await self.conn.fetchrow('SELECT channel_id, title, caught_while, live, old_title, length, createdDateTime, publishDateTime, startedLogAt, endedLogAt, scheduledStartTime, actualStartTime, actualEndTime, retries_of_rerecording, retries_of_rerecording_had_scs FROM video WHERE video_id = $1', self.videoid)
+        old_meta = dict(old_meta_row) if old_meta_row else None
+        if old_meta:
+            old_time_meta = {"scheduledStartTime": old_meta["scheduledstarttime"].timestamp(),
+                             "actualStartTime": old_meta["actualstarttime"].timestamp(),
+                             "actualEndTime": old_meta["actualendtime"].timestamp()}
+            old_meta["liveStreamingDetails"] = old_time_meta
+            if not self.videoinfo:
+                self.videoinfo = copy.deepcopy(self.skeleton_dict)
+            if self.videoinfo["title"] != old_meta["title"]:
+                old_meta["old_title"] = old_meta["title"]
+                old_meta["title"] = self.videoinfo["title"]
+            old_meta_keys_l = [k.lower() for k in old_meta.keys()]
+            old_meta_keys_n = [k for k in old_meta.keys()]
+            old_meta_keys = dict(zip(old_meta_keys_l, old_meta_keys_n))
+            for info in self.skeleton_dict.keys():
+                if info.lower() in old_meta_keys_l:
+                    if type(old_meta[old_meta_keys[info.lower()]]) is datetime:
+                        self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]].timestamp()
+                    else:
+                        self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]]
+        if not self.videoinfo:
+            self.conn.close()
+            return
         self.insert_channels = await self.conn.prepare("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) "
                                                        "ON CONFLICT DO NOTHING")
         self.channel_name_history = await self.conn.prepare("INSERT INTO chan_names(id, name, time_discovered) "
@@ -167,14 +217,13 @@ class SuperchatArchiver:
                                     datetime.now(tz=pytz.timezone('Europe/Berlin')))
         self.chat_err = True
         repeats = 0
-        test_file = pathlib.Path(self.sc_file)
-        if test_file.is_file():
-            if test_file.stat().st_size > 2:
-                await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
+        log_exist_test, filesize, db_retries_had_scs = await self.already_done(self.conn)
+        if log_exist_test:
+            await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
                     "title"] + " already analyzed, skipping. Existing file size: " + str(
-                    test_file.stat().st_size) + " bytes")
-                return
-        had_scs = 0
+                    filesize) + " bytes")
+            return
+        had_scs = db_retries_had_scs if db_retries_had_scs else 0
         self.msg_counter = 0
         caughtlive = True
         while (repeats < self.max_retry_attempts and had_scs < 2 and not self.cancelled and caughtlive):
@@ -270,6 +319,7 @@ class SuperchatArchiver:
         f_donors = open(self.donor_file,"w")
         f_donors.write(json.dumps(self.donors))
         f_donors.close()
+        await self.conn.close()
         if self.cancelled:
             os.rename(f.name, f.name+".cancelled")
             os.rename(f_stats.name, f_stats.name + ".cancelled")
