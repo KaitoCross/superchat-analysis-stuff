@@ -197,8 +197,10 @@ class SuperchatArchiver:
                 if info.lower() in old_meta_keys_l:
                     if type(old_meta[old_meta_keys[info.lower()]]) is datetime:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]].timestamp()
-                    else:
+                    elif old_meta[old_meta_keys[info.lower()]]:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]]
+                    elif not old_meta[old_meta_keys[info.lower()]]:
+                        self.videoinfo[info] = 0
         if not self.videoinfo:
             self.conn.close()
             return
