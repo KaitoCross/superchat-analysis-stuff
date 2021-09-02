@@ -56,6 +56,9 @@ class SuperchatArchiver:
             self.videoinfo["retries_of_rerecording"] = 0
             self.videoPostedAt = copy.deepcopy(self.videoinfo["publishDateTime"])
             self.channel_id = self.metadata["channelId"]
+        else:
+            self.videoPostedAt = 0
+            self.channel_id = ""
         self.skeleton_dict = {"channel": None,
                               "channelId": None,
                               "id": None,
@@ -178,29 +181,36 @@ class SuperchatArchiver:
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
-        old_meta_row = await self.conn.fetchrow('SELECT channel_id, title, caught_while, live, old_title, length, createdDateTime, publishDateTime, startedLogAt, endedLogAt, scheduledStartTime, actualStartTime, actualEndTime, retries_of_rerecording, retries_of_rerecording_had_scs FROM video WHERE video_id = $1', self.videoid)
+        old_meta_row = await self.conn.fetchrow('SELECT c.name, channel_id, title, caught_while, live, old_title, length, createdDateTime, publishDateTime, startedLogAt, endedLogAt, scheduledStartTime, actualStartTime, actualEndTime, retries_of_rerecording, retries_of_rerecording_had_scs FROM video INNER JOIN channel c on channel_id = c.id WHERE video_id = $1', self.videoid)
         old_meta = dict(old_meta_row) if old_meta_row else None
         if old_meta:
-            old_time_meta = {"scheduledStartTime": old_meta["scheduledstarttime"].timestamp(),
-                             "actualStartTime": old_meta["actualstarttime"].timestamp(),
-                             "actualEndTime": old_meta["actualendtime"].timestamp()}
+            old_time_meta = {"scheduledStartTime": old_meta["scheduledstarttime"].timestamp() if old_meta["scheduledstarttime"] else 0,
+                             "actualStartTime": old_meta["actualstarttime"].timestamp() if old_meta["actualstarttime"] else 0,
+                             "actualEndTime": old_meta["actualendtime"].timestamp() if old_meta["actualendtime"] else 0}
             old_meta["liveStreamingDetails"] = old_time_meta
             if not self.videoinfo:
                 self.videoinfo = copy.deepcopy(self.skeleton_dict)
-            if self.videoinfo["title"] != old_meta["title"]:
+            if self.videoinfo["title"] != old_meta["title"] and self.videoinfo["title"]:
                 old_meta["old_title"] = old_meta["title"]
                 old_meta["title"] = self.videoinfo["title"]
             old_meta_keys_l = [k.lower() for k in old_meta.keys()]
             old_meta_keys_n = [k for k in old_meta.keys()]
             old_meta_keys = dict(zip(old_meta_keys_l, old_meta_keys_n))
+            print(old_meta_keys)
             for info in self.skeleton_dict.keys():
                 if info.lower() in old_meta_keys_l:
                     if type(old_meta[old_meta_keys[info.lower()]]) is datetime:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]].timestamp()
                     elif old_meta[old_meta_keys[info.lower()]]:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]]
-                    elif not old_meta[old_meta_keys[info.lower()]]:
+                    elif not old_meta[old_meta_keys[info.lower()]] and "time" in info.lower():
                         self.videoinfo[info] = 0
+                    else:
+                        self.videoinfo[info] = None
+            self.channel_id = old_meta["channel_id"]
+            self.videoinfo["channel"] = old_meta["name"]
+            self.videoPostedAt = self.videoinfo['publishDateTime']
+                        
         if not self.videoinfo:
             self.conn.close()
             return
@@ -212,11 +222,12 @@ class SuperchatArchiver:
                                                        "time_sent, currency, value, color) "
                                                        "VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING")
         async with self.conn.transaction():
-            await self.conn.execute("INSERT INTO channel VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
-                                    self.channel_id, self.videoinfo["channel"], True)
-            await self.conn.execute("INSERT INTO chan_names VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
-                                    self.channel_id, self.videoinfo["channel"],
-                                    datetime.now(tz=pytz.timezone('Europe/Berlin')))
+            if self.channel_id and self.videoinfo["channel"]:
+                await self.conn.execute("INSERT INTO channel VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+                                       self.channel_id, self.videoinfo["channel"], True)
+                await self.conn.execute("INSERT INTO chan_names VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+                                        self.channel_id, self.videoinfo["channel"],
+                                        datetime.now(tz=pytz.timezone('Europe/Berlin')))
         self.chat_err = True
         repeats = 0
         log_exist_test, filesize, db_retries_had_scs = await self.already_done(self.conn)
