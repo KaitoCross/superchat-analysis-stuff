@@ -84,10 +84,10 @@ class SuperchatArchiver:
         self.placeholders = 0
 
     def __str__(self):
-        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
+        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running) + " Live: " + self.videoinfo["live"]
     
     def __repr__(self):
-        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running)
+        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running) + " Live: " + self.videoinfo["live"]
 
     def get_video_info(self,video_ID:str):
         response = None
