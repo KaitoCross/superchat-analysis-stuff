@@ -212,7 +212,7 @@ class SuperchatArchiver:
             self.videoPostedAt = self.videoinfo['publishDateTime']
                         
         if not self.videoinfo:
-            self.conn.close()
+            await self.conn.close()
             return
         self.insert_channels = await self.conn.prepare("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) "
                                                        "ON CONFLICT DO NOTHING")
