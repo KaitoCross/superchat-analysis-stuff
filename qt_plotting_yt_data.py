@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import *
 import ui_design, json, pytz, random
 from PyQt5.QtSql import *
 from PyQt5.QtCore import *
+from PyQt5.QtGui import QColor, QBrush
 from datetime import *
 import numpy as np
 import pandas as pd
@@ -18,10 +19,13 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         super(self.__class__, self).__init__()
         self.setupUi(self)
         self.startQueryButton.clicked.connect(self.plot_data)
+        self.getStreamListButton.clicked.connect(self.get_stream_list)
+        self.getSCbutton.clicked.connect(self.get_superchats)
         self.startDateTimeEditor.setDisplayFormat("dd.MM.yyyy hh:mm")
         self.endDateTimeEditor.setDisplayFormat("dd.MM.yyyy hh:mm")
         self.pgsql_config_file = open("postgres-config-qt.json")
         self.pgsql_creds = json.load(self.pgsql_config_file)
+        self.sc_model = MySqlModel()
         self.populate_widgets()
 
     def plot_data(self):
@@ -42,7 +46,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.plotWidget.canvas.ax.set_xlabel("Date")
         self.plotWidget.canvas.draw()
         self.plotWidget_2.canvas.ax.clear()
-        self.plotWidget_2.canvas.ax.set_xlim(startTime.toPyDateTime().date(),endTime.toPyDateTime().date())
+        self.plotWidget_2.canvas.ax.set_xlim(startTime.toPyDateTime(),endTime.toPyDateTime())
         self.plotWidget_2.canvas.ax.set_ylim(0.0,24.0)
         self.plotWidget_2.canvas.ax.xaxis.set_major_formatter(xFmt)
         self.plotWidget_2.canvas.ax.set_title("Streaming times")
@@ -54,8 +58,10 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             if self.channelListWidget.item(index).checkState() == Qt.Checked:
                 checked_chans.append(self.channelListWidget.item(index))
         namelist = [x.text() for x in checked_chans]
+        namelist.sort()
         patches=[]
         self.color_dict = self.getcolors(namelist)
+        namecount = 0
         for name in namelist:
             stream_list = []
             stream_list = stream_list + self.get_past_schedule(startTime,endTime,name)
@@ -66,9 +72,12 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             for stream in stream_list:
                 stream_list_new = stream_list_new + self.check_midnight(stream[0],stream[1])
             for stream in stream_list_new:
-                x_range = [(stream[0].date(),timedelta(days=1))]
+                time_width = timedelta(days=1) / len(namelist)
+                stream_date = stream[0].replace(hour=0, minute=0, second=0, microsecond=0)
+                x_range = [(stream_date+time_width*namecount,time_width)]
                 y_range = (self.time2delta(stream[0].timetz()).seconds/60.0/60.0,stream[1].seconds/60.0/60.0)
                 self.plotWidget_2.canvas.ax.broken_barh(x_range,y_range, alpha = 0.5, color = col)
+            namecount += 1
         self.plotWidget_2.canvas.ax.yaxis.set_major_locator(loc)
         self.plotWidget_2.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3, handles=patches)
         self.plotWidget_2.canvas.draw()
@@ -102,7 +111,6 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             newmidnight = newtime.replace(hour=0, minute=0, second=0, microsecond=0)
             timetomidnight = newmidnight - oldtime
             timetofinish = newtime - newmidnight
-            #print([(oldtime,timetomidnight),(newmidnight,timetofinish)])
             return [(oldtime,timetomidnight),(newmidnight,timetofinish)]
         else:
             return [(oldtime,duration)]
@@ -124,13 +132,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
     def getcolors(self,namelist):
         self.db.open()
         color_dict = {}
-        names = "("
-        for n in namelist:
-            names = names + "'"+n.replace("'","''")+"',"
-        if len(names) <= 1:
-            names = names + "'None')"
-        else:
-            names = names[:-1] + ")"
+        names = self.namelist_string(namelist)
         query = QSqlQuery()
         query.prepare("select color, id, name from channel where name in "+names+" and color is not null")
         query.exec_()
@@ -170,13 +172,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             if self.channelListWidget.item(index).checkState() == Qt.Checked:
                 checked_chans.append(self.channelListWidget.item(index))
         namelist = [x.text() for x in checked_chans]
-        names = "("
-        for n in namelist:
-            names = names + "'"+n.replace("'","''")+"',"
-        if len(names) <= 1:
-            names = names + "'None')"
-        else:
-            names = names[:-1] + ")"
+        names = self.namelist_string(namelist)
         checked_currencies = []
         for index in range(self.currencyListWidget.count()):
             if self.currencyListWidget.item(index).checkState() == Qt.Checked:
@@ -204,4 +200,73 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             donation_list.append((query.value(4),query.value(3).strip()))
         self.db.close()
         return datetime_list, date_list, time_list, donation_list
-            
+    
+    def get_stream_list(self):
+        self.superchat_menu.clear()
+        startTime = self.startDateTimeEditor.dateTime()
+        endTime = self.endDateTimeEditor.dateTime()
+        startTime.setOffsetFromUtc(0)
+        endTime.setOffsetFromUtc(0)
+        checked_chans = []
+        for index in range(self.channelListWidget.count()):
+            if self.channelListWidget.item(index).checkState() == Qt.Checked:
+                checked_chans.append(self.channelListWidget.item(index))
+        namelist = [x.text() for x in checked_chans]
+        names = self.namelist_string(namelist)
+        self.db.open()
+        query = QSqlQuery()
+        test = query.prepare("SELECT video_id, title, scheduledStartTime AT TIME ZONE 'UTC' from video inner join channel c on c.id = video.channel_id WHERE c.name IN "+names+" and scheduledStartTime >= :start and scheduledStartTime < :end ORDER BY scheduledStartTime")
+        query.bindValue(":start",startTime)
+        query.bindValue(":end",endTime)
+        query.exec_()
+        #print(test, query.lastQuery())
+        while query.next():
+            self.superchat_menu.addItem("["+query.value(2).toPyDateTime().isoformat() + "] " + query.value(1),query.value(0))
+        self.db.close()
+        
+    def namelist_string(self,namelist):
+        names = "("
+        for n in namelist:
+            names = names + "'"+n.replace("'","''")+"',"
+        if len(names) <= 1:
+            names = names + "'None')"
+        else:
+            names = names[:-1] + ")"
+        return names
+    
+    def get_superchats(self):
+        video_id = self.superchat_menu.currentData()
+        checked_currencies = []
+        for index in range(self.currencyListWidget.count()):
+            if self.currencyListWidget.item(index).checkState() == Qt.Checked:
+                checked_currencies.append(self.currencyListWidget.item(index))
+        currencylist = [x.text() for x in checked_currencies]
+        currencies = json.dumps(currencylist).replace("[","(").replace("]",")").replace('"',"'")
+        self.db.open()
+        customquery = "select c.name, '#' || lpad(to_hex(messages.color-4278190080),6,'0') as sc_color, value, currency, message_txt, time_sent from messages inner join channel c on user_id = c.id where video_id = '"+video_id+"' and currency in " + currencies + " order by time_sent"
+        #query = QSqlQuery()
+        #test = query.prepare("select video_id, c.name, message_txt, '#' || lpad(to_hex(messages.color-4278190080),6,'0') as sc_color, value, currency, time_sent from messages inner join channel c on user_id = c.id where video_id = :vid order by time_sent")
+        #query.bindValue(":vid",video_id)
+        #print(video_id,test)
+        #quoted code not working - but that would be the proper way afaik (except currencies are not there yet)
+        self.sc_model.setQuery(customquery,self.db)
+        self.superchat_view.setModel(self.sc_model)
+        self.superchat_view.show()
+        
+class MySqlModel(QSqlQueryModel):
+    def data(self, index, role):
+        if not index.isValid():
+            return QVariant()
+        elif role == Qt.BackgroundRole:
+            if index.column() == 1:
+                color_s = super().data(index)
+                #print(color_s)
+                mpl_color = matplotlib.colors.to_rgb(color_s)
+                color_q = QColor.fromRgbF(mpl_color[0],mpl_color[1],mpl_color[2])
+            else:
+                color_q = QColor.fromRgbF(1.0,1.0,1.0)
+            return QBrush(color_q)
+        elif role != Qt.DisplayRole:
+            return QVariant()
+        return super().data(index, role)
+        
