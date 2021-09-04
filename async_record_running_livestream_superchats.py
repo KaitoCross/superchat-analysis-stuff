@@ -218,9 +218,9 @@ class SuperchatArchiver:
                                                        "ON CONFLICT DO NOTHING")
         self.channel_name_history = await self.conn.prepare("INSERT INTO chan_names(id, name, time_discovered) "
                                                             "VALUES ($1,$2,$3) ON CONFLICT DO NOTHING")
-        self.insert_messages = await self.conn.prepare("INSERT INTO messages(video_id, user_id, message_txt, "
+        self.insert_messages = await self.conn.prepare("INSERT INTO messages(video_id, chat_id, user_id, message_txt, "
                                                        "time_sent, currency, value, color) "
-                                                       "VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING")
+                                                       "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING")
         async with self.conn.transaction():
             if self.channel_id and self.videoinfo["channel"]:
                 await self.conn.execute("INSERT INTO channel VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
@@ -359,6 +359,7 @@ class SuperchatArchiver:
                     sc_minute = sc_datetime.minute
                     sc_user = c.author.name
                     sc_userid = c.author.channelId
+                    chat_id = c.id
                     chatters.append((sc_userid,sc_user,sc_datetime))
                     channels.append((sc_userid, sc_user, False))
                     if sc_userid not in self.donors.keys():
@@ -373,7 +374,7 @@ class SuperchatArchiver:
                     sc_info = {"time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
                                "hour":sc_hour,"minute":sc_minute, "userid":sc_userid, "message":sc_message,
                                "color":sc_color, "debugtime":sc_datetime.isoformat()}
-                    messages.append((self.videoid,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
+                    messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
                     self.stats.append(amount)
                     self.sc_msgs.add(json.dumps(sc_info))
                     self.total_counted_msgs += 1
