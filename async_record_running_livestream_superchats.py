@@ -211,6 +211,7 @@ class SuperchatArchiver:
             self.channel_id = old_meta["channel_id"]
             self.videoinfo["channel"] = old_meta["name"]
             self.videoPostedAt = self.videoinfo['publishDateTime']
+            self.metadata_list.append(self.videoinfo)
                         
         if not self.videoinfo:
             await self.conn.close()
@@ -328,7 +329,7 @@ class SuperchatArchiver:
         f.write(json.dumps(proper_sc_list))
         print(len(proper_sc_list), "unique messages written")
         f.close()
-        f_stats.write(json.dumps([self.metadata_list[0], self.stats[-1], unique_currency_donors]))
+        f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
         f_stats.close()
         f_donors = open(self.donor_file,"w")
         f_donors.write(json.dumps(self.donors))
