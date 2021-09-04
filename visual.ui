@@ -77,11 +77,11 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>2</number>
     </property>
-    <widget class="QWidget" name="tab">
+    <widget class="QWidget" name="sc_tab">
      <attribute name="title">
-      <string>Tab 1</string>
+      <string>Superchat timing</string>
      </attribute>
      <widget class="MplWidget" name="plotWidget" native="true">
       <property name="geometry">
@@ -94,9 +94,9 @@
       </property>
      </widget>
     </widget>
-    <widget class="QWidget" name="tab_2">
+    <widget class="QWidget" name="timetable_tab">
      <attribute name="title">
-      <string>Tab 2</string>
+      <string>streaming schedule</string>
      </attribute>
      <widget class="MplWidget" name="plotWidget_2" native="true">
       <property name="geometry">
@@ -106,6 +106,57 @@
         <width>1001</width>
         <height>641</height>
        </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="superchatreading_tab">
+     <attribute name="title">
+      <string>superchat reading</string>
+     </attribute>
+     <widget class="QTableView" name="superchat_view">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>30</y>
+        <width>1001</width>
+        <height>581</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QComboBox" name="superchat_menu">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>0</y>
+        <width>1001</width>
+        <height>23</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="getSCbutton">
+      <property name="geometry">
+       <rect>
+        <x>910</x>
+        <y>620</y>
+        <width>101</width>
+        <height>23</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Get superchats</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="getStreamListButton">
+      <property name="geometry">
+       <rect>
+        <x>790</x>
+        <y>620</y>
+        <width>101</width>
+        <height>23</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>get stream list</string>
       </property>
      </widget>
     </widget>
