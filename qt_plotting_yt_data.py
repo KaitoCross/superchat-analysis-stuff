@@ -18,6 +18,8 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
     def __init__(self):
         super(self.__class__, self).__init__()
         self.setupUi(self)
+        self.setFixedWidth(1600)
+        self.setFixedHeight(900)
         self.startQueryButton.clicked.connect(self.plot_data)
         self.getStreamListButton.clicked.connect(self.get_stream_list)
         self.getSCbutton.clicked.connect(self.get_superchats)
@@ -252,6 +254,19 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.sc_model.setQuery(customquery,self.db)
         self.superchat_view.setModel(self.sc_model)
         self.superchat_view.show()
+        self.superchat_view.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        self.autoresize()
+
+    def autoresize(self):
+        tablehead = self.superchat_view.horizontalHeader()
+        tablehead.setSectionResizeMode(1,QHeaderView.ResizeToContents)
+        tablehead.setSectionResizeMode(2,QHeaderView.ResizeToContents)
+        tablehead.setSectionResizeMode(3,QHeaderView.ResizeToContents)
+        tablehead.setSectionResizeMode(4,QHeaderView.Stretch)
+        tablehead.setSectionResizeMode(0,QHeaderView.Fixed)
+        tablehead.resizeSection(0,200)
+        #tablehead.resizeSections(QHeaderView.Stretch)
+        self.superchat_view.resizeRowsToContents()
         
 class MySqlModel(QSqlQueryModel):
     def data(self, index, role):

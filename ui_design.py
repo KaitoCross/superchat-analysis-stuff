@@ -16,8 +16,6 @@ class Ui_MainWindow(object):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1600, 900)
         MainWindow.setMaximumSize(QtCore.QSize(1920, 1080))
-        self.setFixedWidth(1600)
-        self.setFixedHeight(900)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.channelListWidget = QtWidgets.QListWidget(self.centralwidget)
@@ -59,6 +57,15 @@ class Ui_MainWindow(object):
         self.superchatreading_tab.setObjectName("superchatreading_tab")
         self.superchat_view = QtWidgets.QTableView(self.superchatreading_tab)
         self.superchat_view.setGeometry(QtCore.QRect(10, 30, 1271, 751))
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.superchat_view.sizePolicy().hasHeightForWidth())
+        self.superchat_view.setSizePolicy(sizePolicy)
+        self.superchat_view.setMinimumSize(QtCore.QSize(1271, 751))
+        self.superchat_view.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.superchat_view.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.superchat_view.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
         self.superchat_view.setSortingEnabled(True)
         self.superchat_view.setWordWrap(True)
         self.superchat_view.setObjectName("superchat_view")
@@ -82,7 +89,7 @@ class Ui_MainWindow(object):
         MainWindow.setStatusBar(self.statusbar)
 
         self.retranslateUi(MainWindow)
-        self.tabWidget.setCurrentIndex(0)
+        self.tabWidget.setCurrentIndex(2)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
