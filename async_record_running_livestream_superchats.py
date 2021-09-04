@@ -165,7 +165,9 @@ class SuperchatArchiver:
                 
     async def already_done(self,conn):
         row = await conn.fetchrow('SELECT retries_of_rerecording_had_scs FROM video WHERE video_id = $1', self.videoid)
-        successful_sc_recordings = row["retries_of_rerecording_had_scs"] if row else 0
+        successful_sc_recordings = 0
+        if row:
+            successful_sc_recordings = row["retries_of_rerecording_had_scs"] if row["retries_of_rerecording_had_scs"] else 0
         test_file = pathlib.Path(self.sc_file)
         file_has_content = False
         if test_file.is_file():
