@@ -167,6 +167,7 @@ class SuperchatArchiver:
         row = await conn.fetchrow('SELECT retries_of_rerecording_had_scs FROM video WHERE video_id = $1', self.videoid)
         successful_sc_recordings = row["retries_of_rerecording_had_scs"] if row else 0
         test_file = pathlib.Path(self.sc_file)
+        file_has_content = False
         if test_file.is_file():
             if test_file.stat().st_size > 2:
                 file_has_content = True
@@ -196,7 +197,7 @@ class SuperchatArchiver:
             old_meta_keys_l = [k.lower() for k in old_meta.keys()]
             old_meta_keys_n = [k for k in old_meta.keys()]
             old_meta_keys = dict(zip(old_meta_keys_l, old_meta_keys_n))
-            print(old_meta_keys)
+            #print(old_meta_keys)
             for info in self.skeleton_dict.keys():
                 if info.lower() in old_meta_keys_l:
                     if type(old_meta[old_meta_keys[info.lower()]]) is datetime:
@@ -371,7 +372,7 @@ class SuperchatArchiver:
                     sc_message = c.message
                     sc_color = c.bgColor
                     sc_currency = c.currency.replace(u'\xa0', '')
-                    sc_info = {"time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
+                    sc_info = {"id": chat_id, "time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
                                "hour":sc_hour,"minute":sc_minute, "userid":sc_userid, "message":sc_message,
                                "color":sc_color, "debugtime":sc_datetime.isoformat()}
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
