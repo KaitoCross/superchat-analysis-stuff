@@ -155,7 +155,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         #    names = names[:-1] + ")"
         self.db.open()
         query = QSqlQuery()
-        query.prepare("select actualstarttime AT TIME ZONE 'UTC', length from video inner join channel c on c.id = channel_id where c.name = :name and length <> 0 and actualstarttime >= :start and actualstarttime < :end")
+        query.prepare("select actualstarttime AT TIME ZONE 'UTC', length, scheduledStartTime  AT TIME ZONE 'UTC', endedLogAt AT TIME ZONE 'UTC' from video inner join channel c on c.id = channel_id where c.name = :name and ((actualstarttime >= :start and actualstarttime < :end) or (scheduledStartTime >= :start and scheduledStartTime < :end))")
         query.bindValue(":name",chan_name)
         query.bindValue(":start",startTime)
         query.bindValue(":end",endTime)
@@ -163,7 +163,19 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         #print(query.lastQuery())
         stream_list = []
         while query.next():
-            stream_list.append((query.value(0).toPyDateTime(),timedelta(seconds=query.value(1))))
+            starttime = query.value(0)
+            starttime = starttime.toPyDateTime() if starttime else 0
+            duration = timedelta(seconds=query.value(1))
+            plannedstarttime = query.value(2).toPyDateTime()
+            endedLogAt = query.value(3).toPyDateTime()
+            if not starttime:
+                starttime = plannedstarttime
+            #print(starttime,duration,endedLogAt)
+            if not duration and endedLogAt:
+                duration = endedLogAt - starttime
+                #print("#",starttime,duration)
+            if starttime and duration:
+                stream_list.append((starttime,duration))
         self.db.close()
         return stream_list
         
@@ -245,12 +257,13 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         currencylist = [x.text() for x in checked_currencies]
         currencies = json.dumps(currencylist).replace("[","(").replace("]",")").replace('"',"'")
         self.db.open()
-        customquery = "select c.name, '#' || lpad(to_hex(messages.color-4278190080),6,'0') as sc_color, value, currency, message_txt, time_sent from messages inner join channel c on user_id = c.id where video_id = '"+video_id+"' and currency in " + currencies + " order by time_sent"
+        customquery = "select (select name from chan_names where id = user_id and time_discovered <= time_sent order by time_discovered desc limit 1) as username, '#' || lpad(to_hex(messages.color-4278190080),6,'0') as sc_color, value, currency, message_txt, time_sent from messages inner join channel c on user_id = c.id where video_id = '"+video_id+"' and currency in " + currencies + " order by time_sent"
         #query = QSqlQuery()
         #test = query.prepare("select video_id, c.name, message_txt, '#' || lpad(to_hex(messages.color-4278190080),6,'0') as sc_color, value, currency, time_sent from messages inner join channel c on user_id = c.id where video_id = :vid order by time_sent")
         #query.bindValue(":vid",video_id)
         #print(video_id,test)
         #quoted code not working - but that would be the proper way afaik (except currencies are not there yet)
+        #print(customquery)
         self.sc_model.setQuery(customquery,self.db)
         self.superchat_view.setModel(self.sc_model)
         self.superchat_view.show()
