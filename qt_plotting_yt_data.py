@@ -167,7 +167,8 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             starttime = starttime.toPyDateTime() if starttime else 0
             duration = timedelta(seconds=query.value(1))
             plannedstarttime = query.value(2).toPyDateTime()
-            endedLogAt = query.value(3).toPyDateTime()
+            endedLogAt = query.value(3)
+            endedLogAt = endedLogAt.toPyDateTime() if endedLogAt else 0
             if not starttime:
                 starttime = plannedstarttime
             #print(starttime,duration,endedLogAt)
