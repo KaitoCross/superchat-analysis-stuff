@@ -12,6 +12,7 @@ CREATE TABLE chan_names(
     id varchar,
     name varchar,
     time_discovered timestamptz,
+    time_used timestamptz,
     PRIMARY KEY (id,name),
     CONSTRAINT chan_id FOREIGN KEY (id) REFERENCES channel(id)
 );

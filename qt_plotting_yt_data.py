@@ -54,6 +54,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.plotWidget_2.canvas.ax.set_title("Streaming times")
         self.plotWidget_2.canvas.ax.set_ylabel("Time of day")
         self.plotWidget_2.canvas.ax.set_xlabel("Date")
+        heatmap_data = np.zeros((7,24))
         loc = plticker.MultipleLocator(base=2.0) # this locator puts ticks at regular intervals
         checked_chans = []
         for index in range(self.channelListWidget.count()):
@@ -79,10 +80,30 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                 x_range = [(stream_date+time_width*namecount,time_width)]
                 y_range = (self.time2delta(stream[0].timetz()).seconds/60.0/60.0,stream[1].seconds/60.0/60.0)
                 self.plotWidget_2.canvas.ax.broken_barh(x_range,y_range, alpha = 0.5, color = col)
+                stream_hour = stream[0].replace(minute=0, second=0, microsecond=0)
+                testtime = stream_hour
+                endtime = stream[0] + stream[1]
+                while testtime <= endtime:
+                    heatmap_data[testtime.weekday()][testtime.time().hour] += 1
+                    testtime = testtime + timedelta(hours=1)
             namecount += 1
+        print(heatmap_data)
+        days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
         self.plotWidget_2.canvas.ax.yaxis.set_major_locator(loc)
         self.plotWidget_2.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3, handles=patches)
         self.plotWidget_2.canvas.draw()
+        self.heatmap_widget.canvas.ax.clear()
+        self.heatmap_widget.canvas.ax.set_title("Stream times heatmap")
+        self.heatmap_widget.canvas.ax.set_ylabel("Day of week")
+        self.heatmap_widget.canvas.ax.set_xlabel("Time of day")
+        self.heatmap_widget.canvas.ax.set_xticks(np.arange(24))
+        self.heatmap_widget.canvas.ax.set_yticks(np.arange(len(days)))
+        self.heatmap_widget.canvas.ax.set_yticklabels(days)
+        self.heatmap_widget.canvas.ax.imshow(heatmap_data)
+        for i in range(len(days)):
+            for j in range(24):
+                text = self.plotWidget_2.canvas.ax.text(j, i, heatmap_data[i, j],ha="center", va="center", color="w")
+        self.heatmap_widget.canvas.draw()
         
     def populate_widgets(self):
         self.db = QSqlDatabase.addDatabase('QPSQL')
@@ -172,7 +193,9 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             if not starttime:
                 starttime = plannedstarttime
             #print(starttime,duration,endedLogAt)
-            if not duration and endedLogAt:
+            if not duration:
+                if not endedLogAt:
+                    endedLogAt = datetime.utcnow()
                 duration = endedLogAt - starttime
                 #print("#",starttime,duration)
             if starttime and duration:

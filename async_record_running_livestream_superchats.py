@@ -9,9 +9,10 @@ from merge_SC_logs_v2 import recount_money
 from decimal import Decimal
 
 class SuperchatArchiver:
-    def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30):
+    def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30, retry_attempts = 72, min_successful_attempts = 2):
         self.total_counted_msgs = 0
-        self.max_retry_attempts = 48 + 24
+        self.max_retry_attempts = retry_attempts
+        self.min_successful_attempts = min_successful_attempts
         self.file_suffix = file_suffix
         self.minutes_wait = minutes_wait
         self.started_at = None
@@ -164,10 +165,12 @@ class SuperchatArchiver:
                                         self.videoid, self.ended_at)
                 
     async def already_done(self,conn):
-        row = await conn.fetchrow('SELECT retries_of_rerecording_had_scs FROM video WHERE video_id = $1', self.videoid)
+        row = await conn.fetchrow('SELECT retries_of_rerecording_had_scs, retries_of_rerecording FROM video WHERE video_id = $1', self.videoid)
         successful_sc_recordings = 0
+        repeats = 0
         if row:
             successful_sc_recordings = row["retries_of_rerecording_had_scs"] if row["retries_of_rerecording_had_scs"] else 0
+            repeats = row["retries_of_rerecording"] if row["retries_of_rerecording"] else 0
         test_file = pathlib.Path(self.sc_file)
         file_has_content = False
         if test_file.is_file():
@@ -176,7 +179,7 @@ class SuperchatArchiver:
         if successful_sc_recordings >= 2 and file_has_content:
             return True, test_file.stat().st_size, successful_sc_recordings
         else:
-            return False, 0, successful_sc_recordings
+            return False, 0, successful_sc_recordings, repeats
 
     async def main(self):
         if not self.loop:
@@ -220,21 +223,21 @@ class SuperchatArchiver:
             return
         self.insert_channels = await self.conn.prepare("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) "
                                                        "ON CONFLICT DO NOTHING")
-        self.channel_name_history = await self.conn.prepare("INSERT INTO chan_names(id, name, time_discovered) "
-                                                            "VALUES ($1,$2,$3) ON CONFLICT DO NOTHING")
+        self.channel_name_history = await self.conn.prepare("INSERT INTO chan_names(id, name, time_discovered, time_used) "
+                                                            "VALUES ($1,$2,$3,$4) ON CONFLICT (id,name) DO UPDATE SET time_used = $4")
         self.insert_messages = await self.conn.prepare("INSERT INTO messages(video_id, chat_id, user_id, message_txt, "
                                                        "time_sent, currency, value, color) "
                                                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING")
         async with self.conn.transaction():
             if self.channel_id and self.videoinfo["channel"]:
-                await self.conn.execute("INSERT INTO channel VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+                await self.conn.execute("INSERT INTO channel VALUES($1,$2,$3) ON CONFLICT (id) DO UPDATE SET tracked = $3",
                                        self.channel_id, self.videoinfo["channel"], True)
                 await self.conn.execute("INSERT INTO chan_names VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
                                         self.channel_id, self.videoinfo["channel"],
                                         datetime.now(tz=pytz.timezone('Europe/Berlin')))
         self.chat_err = True
         repeats = 0
-        log_exist_test, filesize, db_retries_had_scs = await self.already_done(self.conn)
+        log_exist_test, filesize, db_retries_had_scs, repeats = await self.already_done(self.conn)
         if log_exist_test:
             await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
                     "title"] + " already analyzed, skipping. Existing file size: " + str(
@@ -243,7 +246,7 @@ class SuperchatArchiver:
         had_scs = db_retries_had_scs if db_retries_had_scs else 0
         self.msg_counter = 0
         caughtlive = True
-        while (repeats < self.max_retry_attempts and had_scs < 2 and not self.cancelled and caughtlive):
+        while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and caughtlive):
             self.msg_counter = 0
             self.chat_err = True
             while self.chat_err and not self.cancelled:
@@ -346,7 +349,7 @@ class SuperchatArchiver:
 
     async def display(self,data,amount):
         if len(data.items) > 0:
-            start = datetime.now()
+            start = datetime.now(timezone.utc)
             chatters = []
             channels = []
             messages = []
@@ -358,13 +361,14 @@ class SuperchatArchiver:
                     if c.currency in self.clean_currency.keys():
                         c.currency = self.clean_currency[c.currency]
                     sc_datetime = datetime.fromtimestamp(c.timestamp/1000.0,timezone.utc)
+                    name_used_datetime = start if self.videoinfo["live"] == "none" else sc_datetime
                     sc_weekday = sc_datetime.weekday()
                     sc_hour = sc_datetime.hour
                     sc_minute = sc_datetime.minute
                     sc_user = c.author.name
                     sc_userid = c.author.channelId
                     chat_id = c.id
-                    chatters.append((sc_userid,sc_user,sc_datetime))
+                    chatters.append((sc_userid,sc_user,sc_datetime,name_used_datetime))
                     channels.append((sc_userid, sc_user, False))
                     if sc_userid not in self.donors.keys():
                         self.donors[sc_userid] = {"names":[sc_user],
@@ -387,7 +391,7 @@ class SuperchatArchiver:
                 await self.insert_channels.executemany(channels)
                 await self.channel_name_history.executemany(chatters)
                 await self.insert_messages.executemany(messages)
-            end = datetime.now()
+            end = datetime.now(timezone.utc)
             await self.log_output(end.isoformat() + ": "+
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
                 str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))

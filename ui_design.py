@@ -53,6 +53,12 @@ class Ui_MainWindow(object):
         self.plotWidget_2.setGeometry(QtCore.QRect(10, 10, 1271, 801))
         self.plotWidget_2.setObjectName("plotWidget_2")
         self.tabWidget.addTab(self.timetable_tab, "")
+        self.heatmap_tab = QtWidgets.QWidget()
+        self.heatmap_tab.setObjectName("heatmap_tab")
+        self.heatmap_widget = MplWidget(self.heatmap_tab)
+        self.heatmap_widget.setGeometry(QtCore.QRect(10, 10, 1271, 801))
+        self.heatmap_widget.setObjectName("heatmap_widget")
+        self.tabWidget.addTab(self.heatmap_tab, "")
         self.superchatreading_tab = QtWidgets.QWidget()
         self.superchatreading_tab.setObjectName("superchatreading_tab")
         self.superchat_view = QtWidgets.QTableView(self.superchatreading_tab)
@@ -89,7 +95,7 @@ class Ui_MainWindow(object):
         MainWindow.setStatusBar(self.statusbar)
 
         self.retranslateUi(MainWindow)
-        self.tabWidget.setCurrentIndex(2)
+        self.tabWidget.setCurrentIndex(1)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
@@ -98,6 +104,7 @@ class Ui_MainWindow(object):
         self.startQueryButton.setText(_translate("MainWindow", "query database/draw"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.sc_tab), _translate("MainWindow", "Superchat timing"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.timetable_tab), _translate("MainWindow", "streaming schedule"))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.heatmap_tab), _translate("MainWindow", "stream schedule heat map"))
         self.getSCbutton.setText(_translate("MainWindow", "Get superchats"))
         self.getStreamListButton.setText(_translate("MainWindow", "get stream list"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.superchatreading_tab), _translate("MainWindow", "superchat reading"))
