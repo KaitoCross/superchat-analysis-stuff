@@ -177,7 +177,7 @@ class SuperchatArchiver:
             if test_file.stat().st_size > 2:
                 file_has_content = True
         if successful_sc_recordings >= 2 and file_has_content:
-            return True, test_file.stat().st_size, successful_sc_recordings
+            return True, test_file.stat().st_size, successful_sc_recordings, repeats
         else:
             return False, 0, successful_sc_recordings, repeats
 
