@@ -217,6 +217,7 @@ class SuperchatArchiver:
             self.videoinfo["channel"] = old_meta["name"]
             self.videoPostedAt = self.videoinfo['publishDateTime']
             self.metadata_list.append(self.videoinfo)
+            self.ended_at = old_meta["endedlogat"].timestamp() if old_meta["endedlogat"] else None
         await self.log_output(self.videoinfo)
         if not self.videoinfo:
             await self.conn.close()
@@ -269,7 +270,9 @@ class SuperchatArchiver:
                     self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=config.logger(__name__,logging.DEBUG), client = self.httpclient, exception_handler = self.exception_handling)
                     while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
-                    if type(self.running_chat.exception) is exceptions.InvalidVideoIdException: #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
+                    if type(self.running_chat.exception) is exceptions.InvalidVideoIdException or type(self.running_chat.exception) is exceptions.ChatParseException:
+                        #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
+                        #ChatParseException: No chat found
                         self.cancelled = True
                     if repeats == 0 and not self.chat_err and not self.cancelled:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
