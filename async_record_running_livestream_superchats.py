@@ -79,7 +79,7 @@ class SuperchatArchiver:
         self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
         self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
         self.stats_file = self.channel_id + "/vid_stats/" + self.videoid + "_stats.txt"+self.file_suffix
-        print(self.metadata, self.channel_id, self.videoid, self.file_suffix)
+        #print(self.metadata, self.channel_id, self.videoid, self.file_suffix)
         pathlib.Path('./' + self.channel_id + '/vid_stats/donors').mkdir(parents=True, exist_ok=True)
         pathlib.Path('./' + self.channel_id + '/sc_logs').mkdir(parents=True, exist_ok=True)
         self.placeholders = 0
@@ -217,7 +217,7 @@ class SuperchatArchiver:
             self.videoinfo["channel"] = old_meta["name"]
             self.videoPostedAt = self.videoinfo['publishDateTime']
             self.metadata_list.append(self.videoinfo)
-                        
+        await self.log_output(self.videoinfo)
         if not self.videoinfo:
             await self.conn.close()
             return
