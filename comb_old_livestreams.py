@@ -1,7 +1,7 @@
 from async_record_running_livestream_superchats import SuperchatArchiver
-from youtube_api import YouTubeDataAPI
 import argparse, time, os, asyncio, pytz, logging, signal, sys, asyncpg, json
 from datetime import datetime, timezone, timedelta
+import pytchat
 import aiohttp
 from aiohttp_requests import requests
 import math
@@ -42,7 +42,10 @@ class channel_monitor:
         print(self.video_analysis)
         for stream in list(self.video_analysis.keys()):
             self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt")
-            await self.video_analysis[stream].main()
+            try:
+                await self.video_analysis[stream].main()
+            except pytchat.exceptions.InvalidVideoIdException:
+                print("aaa")
             self.analyzed_streams.append(stream)
 
     async def total_api_points_used(self):

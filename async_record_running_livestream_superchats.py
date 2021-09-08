@@ -2,7 +2,7 @@
 import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
-from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor,config)
+from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor,config, exceptions)
 from youtube_api import YouTubeDataAPI
 from sc_wordcloud import superchat_wordcloud
 from merge_SC_logs_v2 import recount_money
@@ -59,7 +59,7 @@ class SuperchatArchiver:
             self.channel_id = self.metadata["channelId"]
         else:
             self.videoPostedAt = 0
-            self.channel_id = ""
+            self.channel_id = "privatted-deleted-memebershipped"
         self.skeleton_dict = {"channel": None,
                               "channelId": None,
                               "id": None,
@@ -266,10 +266,12 @@ class SuperchatArchiver:
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
                     self.httpclient = httpx.AsyncClient(http2=True)
-                    self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=config.logger(__name__,logging.DEBUG), client = self.httpclient)
+                    self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=config.logger(__name__,logging.DEBUG), client = self.httpclient, exception_handler = self.exception_handling)
                     while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
-                    if repeats == 0 and not self.chat_err:
+                    if type(self.running_chat.exception) is exceptions.InvalidVideoIdException: #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
+                        self.cancelled = True
+                    if repeats == 0 and not self.chat_err and not self.cancelled:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
                     await self.httpclient.aclose()
@@ -402,6 +404,9 @@ class SuperchatArchiver:
 
     async def log_output(self,logmsg):
         await self.loop.run_in_executor(self.t_pool,print,logmsg)
+        
+    def exception_handling(loop,context):
+        print(context)
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
