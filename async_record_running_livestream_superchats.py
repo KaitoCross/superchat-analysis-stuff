@@ -288,7 +288,7 @@ class SuperchatArchiver:
                         retries_total = self.videoinfo["retries_of_rerecording"]
                         if newmetadata is not None:
                             self.videoinfo = newmetadata
-                            self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
+                            self.videoinfo["endedLogAt"] = self.ended_at.timestamp() if self.ended_at else None
                             self.videoinfo["retries_of_rerecording_had_scs"] = retries_w_scs
                             self.videoinfo["retries_of_rerecording"] = retries_total
                             self.videoinfo["createdDateTime"] = createdDateTime
