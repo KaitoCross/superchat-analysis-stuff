@@ -184,6 +184,7 @@ class SuperchatArchiver:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
+        print(self.videoinfo)
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
@@ -196,29 +197,30 @@ class SuperchatArchiver:
             old_meta["liveStreamingDetails"] = old_time_meta
             if not self.videoinfo:
                 self.videoinfo = copy.deepcopy(self.skeleton_dict)
+            print(self.videoinfo)
             if self.videoinfo["title"] != old_meta["title"] and self.videoinfo["title"]:
                 old_meta["old_title"] = old_meta["title"]
                 old_meta["title"] = self.videoinfo["title"]
             old_meta_keys_l = [k.lower() for k in old_meta.keys()]
             old_meta_keys_n = [k for k in old_meta.keys()]
             old_meta_keys = dict(zip(old_meta_keys_l, old_meta_keys_n))
-            #print(old_meta_keys)
+            print(old_meta_keys)
             for info in self.skeleton_dict.keys():
                 if info.lower() in old_meta_keys_l:
                     if type(old_meta[old_meta_keys[info.lower()]]) is datetime:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]].timestamp()
-                    elif old_meta[old_meta_keys[info.lower()]]:
+                    elif old_meta[old_meta_keys[info.lower()]] is not None:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]]
-                    elif not old_meta[old_meta_keys[info.lower()]] and "time" in info.lower():
+                    elif old_meta[old_meta_keys[info.lower()]] is None and "time" in info.lower():
                         self.videoinfo[info] = 0
                     else:
-                        self.videoinfo[info] = self.videoinfo[info] if self.videoinfo[info] else None
+                        self.videoinfo[info] = None
             self.channel_id = old_meta["channel_id"]
             self.videoinfo["channel"] = old_meta["name"]
             self.videoPostedAt = self.videoinfo['publishDateTime']
             self.metadata_list.append(self.videoinfo)
-            self.ended_at = old_meta["endedlogat"].timestamp() if old_meta["endedlogat"] else None
-            self.videoinfo["endedLogAt"] = self.ended_at
+            self.ended_at = old_meta["endedlogat"] if old_meta["endedlogat"] else None
+            self.videoinfo["endedLogAt"] = self.ended_at.timestamp() if self.ended_at else None
         await self.log_output(self.videoinfo)
         if not self.videoinfo:
             await self.conn.close()
@@ -249,8 +251,8 @@ class SuperchatArchiver:
             return
         had_scs = db_retries_had_scs if db_retries_had_scs else 0
         self.msg_counter = 0
-        caughtlive = True
-        while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and caughtlive):
+        islive = True
+        while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive):
             self.msg_counter = 0
             self.chat_err = True
             while self.chat_err and not self.cancelled:
@@ -287,6 +289,10 @@ class SuperchatArchiver:
                             await self.log_output(datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()+": Error! Chat monitor ended prematurely!")
                             await self.log_output(self.running_chat.is_alive())
                             self.chat_err = True
+                        else:
+                            islive = False
+                    else:
+                        islive = False
                     if self.videoinfo["caught_while"] in ["upcoming","live"]:
                         #use newer metadata while rescuing certain fields from the old metadata
                         createdDateTime = self.videoPostedAt
@@ -306,7 +312,7 @@ class SuperchatArchiver:
                         else:
                             print("couldn't retrieve new metadata for",self.videoid,old_title)
                     else:
-                        caughtlive = False
+                        islive = False
                     if self.msg_counter > 0 and not self.chat_err:
                         had_scs += 1
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
@@ -319,7 +325,7 @@ class SuperchatArchiver:
                     await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
                     return
             repeats += 1
-            if repeats >= 1 and not self.cancelled and had_scs < 2 and caughtlive:
+            if repeats >= 1 and not self.cancelled and had_scs < 2 and islive:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
         self.running = False
