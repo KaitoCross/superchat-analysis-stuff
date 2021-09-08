@@ -6,7 +6,7 @@ import aiohttp
 from aiohttp_requests import requests
 import math
 
-class channel_monitor:
+class redo_recorder:
     def __init__(self,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt"):
         self.running = True
         self.reset_used = False
@@ -34,14 +34,14 @@ class channel_monitor:
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
-        query = "select video_id from video where retries_of_rerecording_had_scs < 2 and caught_while <> 'none' and scheduledstarttime < $1 order by scheduledstarttime"
+        query = "select video_id from video where (retries_of_rerecording_had_scs < 2 or retries_of_rerecording_had_scs is null) and caught_while <> 'none' and scheduledstarttime < $1 order by scheduledstarttime"
         old_streams = await self.conn.fetch(query,datetime.now(timezone.utc) - timedelta(hours = 12))
         for entry in old_streams:
             self.video_analysis.setdefault(entry[0],None)
             self.running_streams.append(entry[0])
         print(self.video_analysis)
         for stream in list(self.video_analysis.keys()):
-            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt")
+            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2)
             try:
                 await self.video_analysis[stream].main()
             except pytchat.exceptions.InvalidVideoIdException:
@@ -83,7 +83,7 @@ if __name__ =='__main__':
         keyfilepath = args.keyfile
     else:
         keyfilepath = "yt_api_key.txt"
-    monitor = channel_monitor(args.pts,keyfilepath)
+    monitor = redo_recorder(args.pts,keyfilepath)
     loop = asyncio.get_event_loop()
     #loop.set_debug(True)
     #logging.getLogger("asyncio").setLevel(logging.INFO)

@@ -212,12 +212,13 @@ class SuperchatArchiver:
                     elif not old_meta[old_meta_keys[info.lower()]] and "time" in info.lower():
                         self.videoinfo[info] = 0
                     else:
-                        self.videoinfo[info] = None
+                        self.videoinfo[info] = self.videoinfo[info] if self.videoinfo[info] else None
             self.channel_id = old_meta["channel_id"]
             self.videoinfo["channel"] = old_meta["name"]
             self.videoPostedAt = self.videoinfo['publishDateTime']
             self.metadata_list.append(self.videoinfo)
             self.ended_at = old_meta["endedlogat"].timestamp() if old_meta["endedlogat"] else None
+            self.videoinfo["endedLogAt"] = self.ended_at
         await self.log_output(self.videoinfo)
         if not self.videoinfo:
             await self.conn.close()
@@ -239,6 +240,8 @@ class SuperchatArchiver:
         self.chat_err = True
         repeats = 0
         log_exist_test, filesize, db_retries_had_scs, repeats = await self.already_done(self.conn)
+        self.videoinfo["retries_of_rerecording_had_scs"] = db_retries_had_scs
+        self.videoinfo["retries_of_rerecording"] = repeats
         if log_exist_test:
             await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
                     "title"] + " already analyzed, skipping. Existing file size: " + str(
