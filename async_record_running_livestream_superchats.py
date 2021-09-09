@@ -194,6 +194,12 @@ class SuperchatArchiver:
             old_time_meta = {"scheduledStartTime": old_meta["scheduledstarttime"].timestamp() if old_meta["scheduledstarttime"] else 0,
                              "actualStartTime": old_meta["actualstarttime"].timestamp() if old_meta["actualstarttime"] else 0,
                              "actualEndTime": old_meta["actualendtime"].timestamp() if old_meta["actualendtime"] else 0}
+            if self.videoinfo:
+                for time in old_time_meta.keys():
+                    if "liveStreamingDetails" in self.videoinfo.keys():
+                        if time in self.videoinfo["liveStreamingDetails"].keys():
+                            if not old_time_meta[time] and self.videoinfo["liveStreamingDetails"][time]:
+                                old_time_meta[time] = self.videoinfo["liveStreamingDetails"][time]
             old_meta["liveStreamingDetails"] = old_time_meta
             if not self.videoinfo:
                 self.videoinfo = copy.deepcopy(self.skeleton_dict)
@@ -212,7 +218,12 @@ class SuperchatArchiver:
                     elif old_meta[old_meta_keys[info.lower()]] is not None:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]]
                     elif old_meta[old_meta_keys[info.lower()]] is None and "time" in info.lower():
-                        self.videoinfo[info] = 0
+                        if info in self.videoinfo.keys():
+                            print(info,"key found", self.videoinfo[info],self.videoinfo.keys())
+                            self.videoinfo[info] = self.videoinfo[info] if self.videoinfo[info] else 0
+                        else:
+                            print(info,"key not found",self.videoinfo[info],self.videoinfo.keys())
+                            self.videoinfo[info] = 0
                     else:
                         self.videoinfo[info] = None
             self.channel_id = old_meta["channel_id"]
