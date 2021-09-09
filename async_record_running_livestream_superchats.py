@@ -200,6 +200,9 @@ class SuperchatArchiver:
                         if time in self.videoinfo["liveStreamingDetails"].keys():
                             if not old_time_meta[time] and self.videoinfo["liveStreamingDetails"][time]:
                                 old_time_meta[time] = self.videoinfo["liveStreamingDetails"][time]
+            for timekey in old_time_meta.keys():
+                if not old_time_meta[timekey]:
+                    old_time_meta.pop(timekey)
             old_meta["liveStreamingDetails"] = old_time_meta
             if not self.videoinfo:
                 self.videoinfo = copy.deepcopy(self.skeleton_dict)
@@ -210,12 +213,12 @@ class SuperchatArchiver:
             old_meta_keys_l = [k.lower() for k in old_meta.keys()]
             old_meta_keys_n = [k for k in old_meta.keys()]
             old_meta_keys = dict(zip(old_meta_keys_l, old_meta_keys_n))
-            print(old_meta_keys)
+            #print(old_meta_keys)
             for info in self.skeleton_dict.keys():
                 if info.lower() in old_meta_keys_l:
                     if type(old_meta[old_meta_keys[info.lower()]]) is datetime:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]].timestamp()
-                    elif old_meta[old_meta_keys[info.lower()]] is not None:
+                    elif old_meta[old_meta_keys[info.lower()]]:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]]
                     elif old_meta[old_meta_keys[info.lower()]] is None and "time" in info.lower():
                         if info in self.videoinfo.keys():
@@ -225,13 +228,17 @@ class SuperchatArchiver:
                             print(info,"key not found",self.videoinfo[info],self.videoinfo.keys())
                             self.videoinfo[info] = 0
                     else:
-                        self.videoinfo[info] = None
+                        print("else case")
             self.channel_id = old_meta["channel_id"]
             self.videoinfo["channel"] = old_meta["name"]
+            self.videoinfo["channelId"] = self.channel_id
+            self.videoinfo["id"] = self.videoid
             self.videoPostedAt = self.videoinfo['publishDateTime']
             self.metadata_list.append(self.videoinfo)
             self.ended_at = old_meta["endedlogat"] if old_meta["endedlogat"] else None
             self.videoinfo["endedLogAt"] = self.ended_at.timestamp() if self.ended_at else None
+            if self.metadata:
+                self.videoinfo["live"] = self.metadata["live"]
         await self.log_output(self.videoinfo)
         if not self.videoinfo:
             await self.conn.close()
@@ -266,6 +273,8 @@ class SuperchatArchiver:
         while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive):
             self.msg_counter = 0
             self.chat_err = True
+            if self.metadata:
+                islive = self.metadata["live"] in ["upcoming","live"]
             while self.chat_err and not self.cancelled:
                 if "liveStreamingDetails" in self.videoinfo.keys() or self.videoinfo["live"] != "none" or repeats >= 1:
                     self.stats.clear()
@@ -290,7 +299,7 @@ class SuperchatArchiver:
                         #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
                         #ChatParseException: No chat found
                         self.cancelled = True
-                    if repeats == 0 and not self.chat_err and not self.cancelled:
+                    if repeats == 0 and not self.chat_err and not self.cancelled and islive:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
                     await self.httpclient.aclose()
