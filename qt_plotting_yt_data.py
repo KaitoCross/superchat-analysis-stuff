@@ -103,16 +103,20 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.plotWidget_2.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3, handles=patches)
         self.plotWidget_2.canvas.draw()
         self.heatmap_widget.canvas.ax.clear()
+        self.heatmap_widget.canvas.ax2.clear()
+        #self.heatmap_widget.canvas.fig.clear()
         self.heatmap_widget.canvas.ax.set_title("Stream times heatmap")
         self.heatmap_widget.canvas.ax.set_ylabel("Day of week")
         self.heatmap_widget.canvas.ax.set_xlabel("Time of day")
         self.heatmap_widget.canvas.ax.set_xticks(np.arange(24))
         self.heatmap_widget.canvas.ax.set_yticks(np.arange(len(days)))
         self.heatmap_widget.canvas.ax.set_yticklabels(days)
+        heatmap = plt.pcolor(heatmap_data)
+        self.heatmap_widget.canvas.fig.colorbar(heatmap,self.heatmap_widget.canvas.ax2)
         self.heatmap_widget.canvas.ax.imshow(heatmap_data)
-        for i in range(len(days)):
-            for j in range(24):
-                text = self.plotWidget_2.canvas.ax.text(j, i, heatmap_data[i, j],ha="center", va="center", color="w")
+        for y in range(heatmap_data.shape[0]):
+            for x in range(heatmap_data.shape[1]):
+                text = self.plotWidget_2.canvas.ax.text(x, y, heatmap_data[y, x],ha="center", va="center", color="w")
         self.heatmap_widget.canvas.draw()
         #xFmt = mdates.DateFormatter('%H:%M')
         self.donortiming.canvas.ax.clear()
@@ -122,7 +126,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.donortiming.canvas.ax.set_xlabel("Time of day")
         time_dict, coord_dict, area_sums = self.get_supa_time(startTime,endTime)
         for currency in coord_dict:
-            self.donortiming.canvas.ax.plot('time','users',data=coord_dict[currency],label = currency, color = self.choose_color(currency))
+            self.donortiming.canvas.ax.plot(coord_dict[currency]["users"],label = currency, color = self.choose_color(currency))
         self.donortiming.canvas.ax.legend(loc="right")
         self.donortiming.canvas.draw()
         self.area_sc_timing_draw.canvas.ax.clear()
@@ -381,11 +385,9 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                 time_dict[currency] = []
             time_dict[currency].append((time(hour = hournr, tzinfo = timezone.utc),usercount))
             if currency not in coord_dict.keys():
-                coord_dict[currency] = {"time":[],
-                                              "users":[]}
+                coord_dict[currency] = {"users":[0 for i in range(0,24)]}
             #coord_dict[query.value(2)]["time"].append(time(hour = int(query.value(0)), tzinfo = timezone.utc))
-            coord_dict[currency]["time"].append(hournr)
-            coord_dict[currency]["users"].append(usercount)
+            coord_dict[currency]["users"][hournr] += usercount
             for area in self.curr.keys():
                 if currency in self.curr[area]:
                     if area not in area_sums.keys():

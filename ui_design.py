@@ -67,7 +67,7 @@ class Ui_MainWindow(object):
         self.statstabs.addTab(self.timetable_tab, "")
         self.heatmap_tab = QtWidgets.QWidget()
         self.heatmap_tab.setObjectName("heatmap_tab")
-        self.heatmap_widget = MplWidget(self.heatmap_tab)
+        self.heatmap_widget = MplWidget(self.heatmap_tab, True)
         self.heatmap_widget.setGeometry(QtCore.QRect(10, 10, 1271, 801))
         self.heatmap_widget.setObjectName("heatmap_widget")
         self.statstabs.addTab(self.heatmap_tab, "")
