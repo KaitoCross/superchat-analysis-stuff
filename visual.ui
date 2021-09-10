@@ -73,7 +73,7 @@
      </rect>
     </property>
    </widget>
-   <widget class="QTabWidget" name="tabWidget">
+   <widget class="QTabWidget" name="statstabs">
     <property name="geometry">
      <rect>
       <x>0</x>
@@ -89,13 +89,43 @@
      </sizepolicy>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="sc_tab">
      <attribute name="title">
       <string>Superchat timing</string>
      </attribute>
      <widget class="MplWidget" name="plotWidget" native="true">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="donor_currency_time_tab">
+     <attribute name="title">
+      <string>Donors per currency timing</string>
+     </attribute>
+     <widget class="MplWidget" name="donortiming" native="true">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="area_sc_timing_w">
+     <attribute name="title">
+      <string>Donors per area timing</string>
+     </attribute>
+     <widget class="MplWidget" name="area_sc_timing_draw" native="true">
       <property name="geometry">
        <rect>
         <x>10</x>
