@@ -200,6 +200,7 @@ class SuperchatArchiver:
                         if time in self.videoinfo["liveStreamingDetails"].keys():
                             if not old_time_meta[time] and self.videoinfo["liveStreamingDetails"][time]:
                                 old_time_meta[time] = self.videoinfo["liveStreamingDetails"][time]
+            time_meta_keys = copy.deepcopy(old_time_meta.keys())
             for timekey in old_time_meta.keys():
                 if not old_time_meta[timekey]:
                     old_time_meta.pop(timekey)
