@@ -34,4 +34,9 @@ usage: `python3 sc_wordcloud.py path_to_superchat_log_file path_to_mask_image`
 It generates a word cloud from a superchat log in the shape of the object in the mask image and saves a picture of the word cloud in the folder of the superchat log file. The object must be coloured. The background of the object must be pure white - all purely white areas will be detected as background.  
 
 ## Plotting YT data
-This tool uses QT and matplotlib to access the database and plot some information that was recorded through the channel monitoring and superchat recording scripts
+Usage: `python3 yt_meta_analysis_plot.py`
+This tool uses QT and matplotlib to access the database and plot some information that was recorded through the channel monitoring and superchat recording scripts. It should be self-explanatory once you open it.
+
+## Plotting the superchat crowd
+usage: `python3 sc_crowd_intersect.py channel_ids`  
+This collection includes `sc_crowd_intersect.py` which plots how the superchat donors are shared between channels as an upset-plot. Each streamer has a set of donors - this plot measures how big the intersections between those sets are. The dots indicate which intersection is being plotted above. Single dots indicate that the above plot indicates how many users have donated exclusively to the streamer marked with the single dot.

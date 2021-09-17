@@ -12,6 +12,7 @@ CREATE TABLE chan_names(
     id varchar,
     name varchar,
     time_discovered timestamptz,
+    time_used timestamptz,
     PRIMARY KEY (id,name),
     CONSTRAINT chan_id FOREIGN KEY (id) REFERENCES channel(id)
 );
@@ -37,6 +38,7 @@ CREATE TABLE video(
 );
 CREATE TABLE messages(
     video_id varchar,
+    chat_id varchar,
     user_id varchar,
     message_txt varchar,
     time_sent timestamptz,

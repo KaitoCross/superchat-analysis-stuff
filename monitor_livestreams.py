@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
 from youtube_api import YouTubeDataAPI
 import argparse, time, os, asyncio, pytz, logging, signal, sys
@@ -10,7 +11,8 @@ class channel_monitor:
     def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt"):
         self.running = True
         self.reset_used = False
-        signal.signal(signal.SIGUSR1, self.signal_handler)
+        signal.signal(signal.SIGUSR1, self.signal_handler_1)
+        signal.signal(signal.SIGUSR2, self.signal_handler_2)
         self.yt_api_key = "####"
         keyfile = open(keyfilepath, "r")
         self.yt_api_key = keyfile.read()
@@ -155,7 +157,7 @@ class channel_monitor:
                 points_used_by_analysis += self.video_analysis[stream].api_points_used
         return points_used_by_analysis+self.api_points_used
 
-    def signal_handler(self, sig, frame):
+    def signal_handler_1(self, sig, frame):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.video_analysis[stream].cancel()
@@ -167,6 +169,11 @@ class channel_monitor:
                 points_used_by_analysis += self.video_analysis[stream].api_points_used
         pts_used = points_used_by_analysis+self.api_points_used
         print("api points used:", pts_used)
+        
+    def signal_handler_2(self, sig, frame):
+        for stream in self.video_analysis:
+            if self.video_analysis[stream]:
+                print(self.video_analysis[stream])
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
