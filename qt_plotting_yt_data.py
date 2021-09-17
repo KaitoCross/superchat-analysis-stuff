@@ -103,7 +103,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                     #    heatmap_data[8][testtime.time().hour] += 1
                     testtime = testtime + timedelta(hours=1)
             namecount += 1
-        print(heatmap_data)
+        #print(heatmap_data)
         days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']#,'Weekdays','Weekend']
         self.plotWidget_2.canvas.ax.yaxis.set_major_locator(loc)
         self.plotWidget_2.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3, handles=patches)
@@ -141,7 +141,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.area_sc_timing_draw.canvas.ax.set_title("Donors per region at which time")
         self.area_sc_timing_draw.canvas.ax.set_ylabel("amount of unique superchatters")
         self.area_sc_timing_draw.canvas.ax.set_xlabel("Time of day")
-        print(area_sums)
+        #print(area_sums)
         for area in area_sums.keys():
             self.area_sc_timing_draw.canvas.ax.plot(area_sums[area], label = str(area), color = self.choose_color(area))
         self.area_sc_timing_draw.canvas.ax.legend(loc="right")
@@ -256,7 +256,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                 if actualEndTime:
                     end_time = actualEndTime
                 duration = end_time - starttime
-                print("#",starttime,duration,end_time,vid)
+                #print("#",starttime,duration,end_time,vid)
                 if end_time < starttime:
                     starttime = end_time - unknowndur
                     duration = unknowndur
