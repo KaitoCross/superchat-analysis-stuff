@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import argparse, os, collections, six, psycopg2, json, datetime
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,7 +38,7 @@ class superchat_crowd:
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('channel_ids', metavar='sc_file_path', type=str, nargs='+',
+    parser.add_argument('channel_ids', metavar='many_channel_ids', type=str, nargs='+',
                         help='youtube video ID')
     parser.add_argument('--font',action='store', type=str, help='font path', default=None)
     args = parser.parse_args()

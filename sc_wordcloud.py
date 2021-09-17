@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import argparse, os, json, many_stop_words, collections, six
 from wordcloud import WordCloud, STOPWORDS
 import matplotlib.pyplot as plt

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
 from youtube_api import YouTubeDataAPI
 import argparse, time, os, asyncio, pytz, logging, signal, sys

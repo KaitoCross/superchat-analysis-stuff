@@ -70,6 +70,12 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         namelist.sort()
         patches=[]
         self.color_dict = self.getcolors(namelist)
+        self.color_dict["Europe"] = (0.0,0.0,1.0)
+        self.color_dict["North America"] = (1.0,0.0,0.0)
+        self.color_dict["Asia"] = (0.0,1.0,0.0)
+        self.color_dict["Oceania"] = (0.0,0.0,0.0)
+        self.color_dict["Africa"] = (1.0,1.0,0.0)
+        self.color_dict["South America"] = (1.0,165/255.0,0.0)
         namecount = 0
         for name in namelist:
             stream_list = []
@@ -121,6 +127,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         #xFmt = mdates.DateFormatter('%H:%M')
         self.donortiming.canvas.ax.clear()
         self.donortiming.canvas.ax.set_title("Donors per currency at which time")
+        self.donortiming.canvas.ax.xaxis.set_major_locator(loc)
         #self.donortiming.canvas.ax.xaxis.set_major_formatter(xFmt)
         self.donortiming.canvas.ax.set_ylabel("amount of unique superchatters")
         self.donortiming.canvas.ax.set_xlabel("Time of day")
@@ -130,6 +137,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.donortiming.canvas.ax.legend(loc="right")
         self.donortiming.canvas.draw()
         self.area_sc_timing_draw.canvas.ax.clear()
+        self.area_sc_timing_draw.canvas.ax.xaxis.set_major_locator(loc)
         self.area_sc_timing_draw.canvas.ax.set_title("Donors per region at which time")
         self.area_sc_timing_draw.canvas.ax.set_ylabel("amount of unique superchatters")
         self.area_sc_timing_draw.canvas.ax.set_xlabel("Time of day")
@@ -215,18 +223,20 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         #    names = names[:-1] + ")"
         self.db.open()
         query = QSqlQuery()
-        query.prepare("select actualstarttime AT TIME ZONE 'UTC', length, scheduledStartTime AT TIME ZONE 'UTC', endedLogAt AT TIME ZONE 'UTC', actualendtime AT TIME ZONE 'UTC' from video inner join channel c on c.id = channel_id where c.name = :name and ((actualstarttime >= :start and actualstarttime < :end) or (scheduledStartTime >= :start and scheduledStartTime < :end))")
+        query.prepare("select actualstarttime AT TIME ZONE 'UTC', length, scheduledStartTime AT TIME ZONE 'UTC', endedLogAt AT TIME ZONE 'UTC', actualendtime AT TIME ZONE 'UTC', video_id from video inner join channel c on c.id = channel_id where c.name = :name and ((actualstarttime >= :start and actualstarttime < :end) or (scheduledStartTime >= :start and scheduledStartTime < :end))")
         query.bindValue(":name",chan_name)
         query.bindValue(":start",startTime)
         query.bindValue(":end",endTime)
         query.exec_()
         #print(query.lastQuery())
         stream_list = []
+        unknowndur = timedelta(hours = 2)
         while query.next():
             starttime = query.value(0)
             starttime = starttime.toPyDateTime() if starttime else 0
             duration = timedelta(seconds=query.value(1))
             plannedstarttime = query.value(2).toPyDateTime()
+            vid = query.value(5)
             endedLogAt = query.value(3)
             endedLogAt = endedLogAt.toPyDateTime() if endedLogAt else 0
             actualEndTime = query.value(4)
@@ -238,7 +248,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                 end_time = None
                 if not endedLogAt:
                     now = datetime.utcnow()
-                    tempend = starttime + timedelta(hours = 3)
+                    tempend = starttime + unknowndur
                     endedLogAt = now if (now - starttime) < timedelta(hours = 12) else tempend
                     end_time = endedLogAt
                 else:
@@ -246,7 +256,10 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                 if actualEndTime:
                     end_time = actualEndTime
                 duration = end_time - starttime
-                #print("#",starttime,duration)
+                print("#",starttime,duration,end_time,vid)
+                if end_time < starttime:
+                    starttime = end_time - unknowndur
+                    duration = unknowndur
             if starttime and duration:
                 stream_list.append((starttime,duration))
         self.db.close()
