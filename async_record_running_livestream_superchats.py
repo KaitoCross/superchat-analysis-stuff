@@ -421,8 +421,9 @@ class SuperchatArchiver:
                                "hour":sc_hour,"minute":sc_minute, "userid":sc_userid, "message":sc_message,
                                "color":sc_color, "debugtime":sc_datetime.isoformat()}
                     if c.type == "sponsorMessage":
-                        #print(sc_info)
                         self.total_member_msgs += 1
+                        sc_info["member_level"] = c.member_level
+                        #print(sc_info)
                     else:
                         self.total_counted_msgs += 1
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
