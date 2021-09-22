@@ -50,6 +50,7 @@ class SuperchatArchiver:
 
         self.metadata = self.get_video_info(self.videoid)
         self.api_points_used += 1.0
+        self.total_member_msgs = 0
         self.running = True
         self.running_chat = None
         if self.metadata is not None:
@@ -339,6 +340,7 @@ class SuperchatArchiver:
                         had_scs += 1
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
                         self.total_counted_msgs = 0
+                        self.total_member_msgs = 0
                     self.videoinfo["startedLogAt"] = self.started_at.timestamp()
                     self.videoinfo["retries_of_rerecording"] = repeats
                     await self.update_psql_metadata()
@@ -393,7 +395,7 @@ class SuperchatArchiver:
                 if c.type == "placeholder":
                     self.placeholders += 1
                 #sums in a list
-                if c.type == "superChat" or c.type == "superSticker":
+                if c.type in ["superChat","superSticker","sponsorMessage"]:
                     if c.currency in self.clean_currency.keys():
                         c.currency = self.clean_currency[c.currency]
                     sc_datetime = datetime.fromtimestamp(c.timestamp/1000.0,timezone.utc)
@@ -418,10 +420,14 @@ class SuperchatArchiver:
                     sc_info = {"id": chat_id, "time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
                                "hour":sc_hour,"minute":sc_minute, "userid":sc_userid, "message":sc_message,
                                "color":sc_color, "debugtime":sc_datetime.isoformat()}
+                    if c.type == "sponsorMessage":
+                        #print(sc_info)
+                        self.total_member_msgs += 1
+                    else:
+                        self.total_counted_msgs += 1
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
                     self.stats.append(amount)
                     self.sc_msgs.add(json.dumps(sc_info))
-                    self.total_counted_msgs += 1
             self.msg_counter = amount["amount_sc"]
             async with self.conn.transaction():
                 await self.insert_channels.executemany(channels)
