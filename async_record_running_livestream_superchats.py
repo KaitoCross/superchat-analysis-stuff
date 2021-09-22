@@ -436,7 +436,7 @@ class SuperchatArchiver:
             end = datetime.now(timezone.utc)
             await self.log_output(end.isoformat() + ": "+
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
-                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
+                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " superchats, "+str(self.total_member_msgs)+" member anniversarsy scs took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
 
     def generate_wordcloud(self,log):
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)
