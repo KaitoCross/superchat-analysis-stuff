@@ -24,11 +24,12 @@ def merge_logs(old_sc_log, new_sc_log):
 def recount_money(sc_log):
 	money_dict = {"amount_sc": 0}
 	for superchat in sc_log:
-		if superchat['currency'] in money_dict.keys():
-			money_dict[superchat['currency']]+= superchat['value']
-		else:
-			money_dict[superchat['currency']] = superchat['value']
-		money_dict['amount_sc'] += 1
+		if 'currency' in superchat.keys():
+			if superchat['currency'] in money_dict.keys():
+				money_dict[superchat['currency']]+= superchat['value']
+			else:
+				money_dict[superchat['currency']] = superchat['value']
+			money_dict['amount_sc'] += 1
 	return money_dict
 
 
