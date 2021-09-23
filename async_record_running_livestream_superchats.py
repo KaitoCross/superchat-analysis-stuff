@@ -12,6 +12,7 @@ from decimal import Decimal
 class SuperchatArchiver:
     def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30, retry_attempts = 72, min_successful_attempts = 2):
         self.total_counted_msgs = 0
+        self.total_new_members = 0
         self.max_retry_attempts = retry_attempts
         self.min_successful_attempts = min_successful_attempts
         self.file_suffix = file_suffix
@@ -341,6 +342,7 @@ class SuperchatArchiver:
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
                         self.total_counted_msgs = 0
                         self.total_member_msgs = 0
+                        self.total_new_members = 0
                     self.videoinfo["startedLogAt"] = self.started_at.timestamp()
                     self.videoinfo["retries_of_rerecording"] = repeats
                     await self.update_psql_metadata()
@@ -356,21 +358,24 @@ class SuperchatArchiver:
         await self.log_output("writing to files")
         proper_sc_list = []
         unique_currency_donors={}
+        count_scs = 0
         for msg in self.sc_msgs:
             msg_loaded = json.loads(msg)
-            donations = self.donors[msg_loaded["userid"]]["donations"].setdefault(msg_loaded["currency"],[0,0])
-            self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][0] = donations[0] + 1 #amount of donations
-            self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][1] = donations[1] + msg_loaded["value"] #total amount of money donated
+            if msg_loaded["type"] not in ["newSponsor", "sponsorMessage"]:
+                count_scs += 1
+                donations = self.donors[msg_loaded["userid"]]["donations"].setdefault(msg_loaded["currency"],[0,0])
+                self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][0] = donations[0] + 1 #amount of donations
+                self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][1] = donations[1] + msg_loaded["value"] #total amount of money donated
+                self.unique_donors.setdefault(msg_loaded["currency"], set())
+                self.unique_donors[msg_loaded["currency"]].add(msg_loaded["userid"])
             proper_sc_list.append(msg_loaded)
-            self.unique_donors.setdefault(msg_loaded["currency"], set())
-            self.unique_donors[msg_loaded["currency"]].add(msg_loaded["userid"])
         for currency in self.unique_donors.keys():
             unique_currency_donors[currency] = len(self.unique_donors[currency])
         self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
         f = open(self.sc_file, "w")
         f_stats = open(self.stats_file, "w")
         f.write(json.dumps(proper_sc_list))
-        print(len(proper_sc_list), "unique messages written")
+        print(len(proper_sc_list), "unique messages written",count_scs,"are superchats")
         f.close()
         f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
         f_stats.close()
@@ -394,6 +399,12 @@ class SuperchatArchiver:
             for c in data.items: #data.items contains superchat messages - save them in list while also saving the calculated
                 if c.type == "placeholder":
                     self.placeholders += 1
+                if c.type == "newSponsor":
+                    sc_datetime = datetime.fromtimestamp(c.timestamp/1000.0,timezone.utc)
+                    sc_info = {"type": c.type, "id": c.id, "time":c.timestamp,
+                               "userid":c.author.channelId, "member_level": c.member_level, "debugtime":sc_datetime.isoformat()}
+                    self.total_new_members += 1
+                    self.sc_msgs.add(json.dumps(sc_info))
                 #sums in a list
                 if c.type in ["superChat","superSticker","sponsorMessage"]:
                     if c.currency in self.clean_currency.keys():
@@ -417,7 +428,7 @@ class SuperchatArchiver:
                     sc_message = c.message
                     sc_color = c.bgColor
                     sc_currency = c.currency.replace(u'\xa0', '')
-                    sc_info = {"id": chat_id, "time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
+                    sc_info = {"type": c.type, "id": chat_id, "time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
                                "hour":sc_hour,"minute":sc_minute, "userid":sc_userid, "message":sc_message,
                                "color":sc_color, "debugtime":sc_datetime.isoformat()}
                     if c.type == "sponsorMessage":
@@ -437,7 +448,7 @@ class SuperchatArchiver:
             end = datetime.now(timezone.utc)
             await self.log_output(end.isoformat() + ": "+
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
-                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " superchats, "+str(self.total_member_msgs)+" member anniversarsy scs took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
+                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " superchats, "+str(self.total_new_members)+" new members, "+str(self.total_member_msgs)+" member anniversarsy scs took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
 
     def generate_wordcloud(self,log):
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)
