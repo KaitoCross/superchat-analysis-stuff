@@ -371,12 +371,12 @@ class SuperchatArchiver:
             proper_sc_list.append(msg_loaded)
         for currency in self.unique_donors.keys():
             unique_currency_donors[currency] = len(self.unique_donors[currency])
-        self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
         f = open(self.sc_file, "w")
         f_stats = open(self.stats_file, "w")
         f.write(json.dumps(proper_sc_list))
         print(len(proper_sc_list), "unique messages written",count_scs,"are superchats")
         f.close()
+        self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
         f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
         f_stats.close()
         f_donors = open(self.donor_file,"w")
@@ -448,7 +448,7 @@ class SuperchatArchiver:
             end = datetime.now(timezone.utc)
             await self.log_output(end.isoformat() + ": "+
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
-                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " superchats, "+str(self.total_new_members)+" new members, "+str(self.total_member_msgs)+" member anniversarsy scs took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
+                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " superchats, "+str(self.total_new_members)+" new members, "+str(self.total_member_msgs)+" member anniversary scs took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
 
     def generate_wordcloud(self,log):
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)
