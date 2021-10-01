@@ -469,7 +469,7 @@ class SuperchatArchiver:
             msg_string = logmsg
         else:
             msg_string = str(logmsg)
-        await self.loop.run_in_executor(self.t_pool,logging.log,level,logmsg)
+        await self.loop.run_in_executor(self.t_pool,logging.log,level,msg_string)
         
     def exception_handling(self,loop,context):
         ex_time = datetime.now(timezone.utc)
