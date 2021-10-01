@@ -82,7 +82,7 @@ class SuperchatArchiver:
         self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
         self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
         self.stats_file = self.channel_id + "/vid_stats/" + self.videoid + "_stats.txt"+self.file_suffix
-        #print(self.metadata, self.channel_id, self.videoid, self.file_suffix)
+        #await self.log_output((self.metadata, self.channel_id, self.videoid, self.file_suffix))
         pathlib.Path('./' + self.channel_id + '/vid_stats/donors').mkdir(parents=True, exist_ok=True)
         pathlib.Path('./' + self.channel_id + '/sc_logs').mkdir(parents=True, exist_ok=True)
         self.placeholders = 0
@@ -217,7 +217,7 @@ class SuperchatArchiver:
             old_meta_keys_l = [k.lower() for k in old_meta.keys()]
             old_meta_keys_n = [k for k in old_meta.keys()]
             old_meta_keys = dict(zip(old_meta_keys_l, old_meta_keys_n))
-            #print(old_meta_keys)
+            #await self.log_output(old_meta_keys)
             for info in self.skeleton_dict.keys():
                 if info.lower() in old_meta_keys_l:
                     if type(old_meta[old_meta_keys[info.lower()]]) is datetime:
@@ -435,7 +435,7 @@ class SuperchatArchiver:
                     if c.type == "sponsorMessage":
                         self.total_member_msgs += 1
                         sc_info["member_level"] = c.member_level
-                        #print(sc_info)
+                        #await self.log_output(sc_info)
                     else:
                         self.total_counted_msgs += 1
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
@@ -455,7 +455,7 @@ class SuperchatArchiver:
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)
         wordcloudmake.generate()
 
-    async def log_output(self,logmsg,log_output,level = 10):
+    async def log_output(self,logmsg,level = 10):
         msg_string = ""
         msg_len = len(logmsg)
         if isinstance(logmsg, tuple):
