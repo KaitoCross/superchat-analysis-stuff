@@ -202,12 +202,12 @@ class channel_monitor:
             if self.video_analysis[stream] is not None:
                 points_used_by_analysis += self.video_analysis[stream].api_points_used
         pts_used = points_used_by_analysis+self.api_points_used
-        self.logger.log("api points used:", pts_used)
+        self.logger.log(10,("api points used:", pts_used))
         
     def signal_handler_2(self, sig, frame):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
-                self.logger.log(self.video_analysis[stream])
+                self.logger.log(10,self.video_analysis[stream])
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
