@@ -5,6 +5,7 @@ import argparse, time, os, asyncio, pytz, logging, signal, sys, concurrent.futur
 from datetime import datetime, timezone, timedelta
 import aiohttp
 from aiohttp_requests import requests
+from pytchat import config
 import math
 
 class channel_monitor:
@@ -36,8 +37,9 @@ class channel_monitor:
         fh.setLevel(logging.DEBUG)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
+        dbg_formatter = config.MyFormatter()
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh.setFormatter(formatter)
+        fh.setFormatter(dbg_formatter)
         ch.setFormatter(formatter)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
