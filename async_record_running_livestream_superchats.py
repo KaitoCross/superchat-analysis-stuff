@@ -187,7 +187,7 @@ class SuperchatArchiver:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
-        await self.log_output(self.videoinfo,10)
+        await self.log_output(self.videoinfo)
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
@@ -243,7 +243,7 @@ class SuperchatArchiver:
             self.videoinfo["endedLogAt"] = self.ended_at.timestamp() if self.ended_at else None
             if self.metadata:
                 self.videoinfo["live"] = self.metadata["live"]
-        await self.log_output(self.videoinfo,10)
+        await self.log_output(self.videoinfo)
         if not self.videoinfo:
             await self.conn.close()
             return
@@ -455,10 +455,11 @@ class SuperchatArchiver:
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)
         wordcloudmake.generate()
 
-    async def log_output(self,logmsg,level = 10):
+    async def log_output(self,logmsg,level = 20):
         msg_string = ""
         msg_len = len(logmsg)
         if isinstance(logmsg, tuple):
+            #print("islist")
             part_count = 0
             for msg_part in logmsg:
                 part_count += 1
@@ -469,6 +470,7 @@ class SuperchatArchiver:
             msg_string = logmsg
         else:
             msg_string = str(logmsg)
+        #print(level,msg_string)
         await self.loop.run_in_executor(self.t_pool,logging.log,level,msg_string)
         
     def exception_handling(self,loop,context):
