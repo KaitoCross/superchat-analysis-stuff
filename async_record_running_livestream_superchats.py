@@ -325,8 +325,7 @@ class SuperchatArchiver:
                     newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
                     if newmetadata is not None:
                         if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
-                            await self.log_output(datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()+": Error! Chat monitor ended prematurely!")
-                            await self.log_output(self.running_chat.is_alive())
+                            await self.log_output(("Error! Chat monitor ended prematurely!",self.running_chat.is_alive()))
                             self.chat_err = True
                         else:
                             islive = False
@@ -462,7 +461,7 @@ class SuperchatArchiver:
                 await self.channel_name_history.executemany(chatters)
                 await self.insert_messages.executemany(messages)
             end = datetime.now(timezone.utc)
-            await self.log_output(end.isoformat() + ": "+
+            await self.log_output(
                 self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
                 str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " superchats, "+str(self.total_new_members)+" new members, "+str(self.total_member_msgs)+" member anniversary scs took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
 

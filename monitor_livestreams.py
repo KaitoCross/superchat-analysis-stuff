@@ -74,7 +74,7 @@ class channel_monitor:
                 await self.log_output("API Quota exceeded!",30)
             await self.log_output(self.video_analysis)
             current_time = datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()
-            await self.log_output((current_time,list(self.video_analysis.keys())))#, planned_streams)
+            await self.log_output(list(self.video_analysis.keys()))#, planned_streams)
             if self.api_points_used < self.api_points:
                 for stream in list(self.video_analysis.keys()):
                     if self.video_analysis[stream] is None and stream not in self.analyzed_streams: #because YouTube lists past streams as "upcoming" for a while after stream ends
