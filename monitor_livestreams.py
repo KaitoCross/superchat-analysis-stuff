@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
 from youtube_api import YouTubeDataAPI
-import argparse, time, os, asyncio, pytz, logging, signal, sys
+import argparse, time, os, asyncio, pytz, logging, signal, sys, concurrent.futures
 from datetime import datetime, timezone, timedelta
 import aiohttp
 from aiohttp_requests import requests
@@ -32,7 +32,7 @@ class channel_monitor:
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
-        fh = logging.FileHandler("monitor_"+keyfilepath+".debuglog")
+        fh = logging.FileHandler(keyfilepath+"_monitor.debuglog")
         fh.setLevel(logging.DEBUG)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
