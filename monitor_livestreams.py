@@ -37,7 +37,7 @@ class channel_monitor:
         fh.setLevel(logging.DEBUG)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
-        dbg_formatter = config.MyFormatter()
+        dbg_formatter = config.mylogger.MyFormatter()
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         fh.setFormatter(dbg_formatter)
         ch.setFormatter(formatter)
