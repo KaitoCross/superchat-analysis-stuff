@@ -187,7 +187,7 @@ class SuperchatArchiver:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
-        print(self.videoinfo)
+        await self.log_output(self.videoinfo,10)
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
@@ -210,7 +210,7 @@ class SuperchatArchiver:
             old_meta["liveStreamingDetails"] = old_time_meta
             if not self.videoinfo:
                 self.videoinfo = copy.deepcopy(self.skeleton_dict)
-            print(self.videoinfo)
+            await self.log_output(self.videoinfo,20)
             if self.videoinfo["title"] != old_meta["title"] and self.videoinfo["title"]:
                 old_meta["old_title"] = old_meta["title"]
                 old_meta["title"] = self.videoinfo["title"]
@@ -226,13 +226,13 @@ class SuperchatArchiver:
                         self.videoinfo[info] = old_meta[old_meta_keys[info.lower()]]
                     elif old_meta[old_meta_keys[info.lower()]] is None and "time" in info.lower():
                         if info in self.videoinfo.keys():
-                            print(info,"key found", self.videoinfo[info],self.videoinfo.keys())
+                            await self.log_output((info,"key found", self.videoinfo[info],self.videoinfo.keys()))
                             self.videoinfo[info] = self.videoinfo[info] if self.videoinfo[info] else 0
                         else:
-                            print(info,"key not found",self.videoinfo[info],self.videoinfo.keys())
+                            await self.log_output((info,"key not found",self.videoinfo[info],self.videoinfo.keys()))
                             self.videoinfo[info] = 0
                     else:
-                        print("else case")
+                        await self.log_output("else case",20)
             self.channel_id = old_meta["channel_id"]
             self.videoinfo["channel"] = old_meta["name"]
             self.videoinfo["channelId"] = self.channel_id
@@ -243,7 +243,7 @@ class SuperchatArchiver:
             self.videoinfo["endedLogAt"] = self.ended_at.timestamp() if self.ended_at else None
             if self.metadata:
                 self.videoinfo["live"] = self.metadata["live"]
-        await self.log_output(self.videoinfo)
+        await self.log_output(self.videoinfo,10)
         if not self.videoinfo:
             await self.conn.close()
             return
@@ -334,7 +334,7 @@ class SuperchatArchiver:
                             if self.videoinfo["title"] != old_title:
                                 self.videoinfo["old_title"] = old_title
                         else:
-                            print("couldn't retrieve new metadata for",self.videoid,old_title)
+                            await self.log_output(("couldn't retrieve new metadata for",self.videoid,old_title))
                     else:
                         islive = False
                     if self.msg_counter > 0 and not self.chat_err:
@@ -351,7 +351,7 @@ class SuperchatArchiver:
                     await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
                     return
             repeats += 1
-            print(repeats,self.cancelled,had_scs,islive)
+            await self.log_output((repeats,self.cancelled,had_scs,islive))
             if repeats >= 1 and not self.cancelled and had_scs < 2 and islive:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
@@ -375,7 +375,7 @@ class SuperchatArchiver:
         f = open(self.sc_file, "w")
         f_stats = open(self.stats_file, "w")
         f.write(json.dumps(proper_sc_list))
-        print(len(proper_sc_list), "unique messages written",count_scs,"are superchats")
+        await self.log_output((len(proper_sc_list), "unique messages written",count_scs,"are superchats"))
         f.close()
         self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
         f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
@@ -455,8 +455,21 @@ class SuperchatArchiver:
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)
         wordcloudmake.generate()
 
-    async def log_output(self,logmsg):
-        await self.loop.run_in_executor(self.t_pool,print,logmsg)
+    async def log_output(self,logmsg,log_output,level = 10):
+        msg_string = ""
+        msg_len = len(logmsg)
+        if isinstance(logmsg, tuple):
+            part_count = 0
+            for msg_part in logmsg:
+                part_count += 1
+                msg_string += str(msg_part)
+                if msg_len > part_count:
+                    msg_string += " "
+        elif isinstance(logmsg, str):
+            msg_string = logmsg
+        else:
+            msg_string = str(logmsg)
+        await self.loop.run_in_executor(self.t_pool,logging.log,level,logmsg)
         
     def exception_handling(self,loop,context):
         ex_time = datetime.now(timezone.utc)
