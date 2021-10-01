@@ -86,6 +86,17 @@ class SuperchatArchiver:
         pathlib.Path('./' + self.channel_id + '/vid_stats/donors').mkdir(parents=True, exist_ok=True)
         pathlib.Path('./' + self.channel_id + '/sc_logs').mkdir(parents=True, exist_ok=True)
         self.placeholders = 0
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        fh = logging.FileHandler('./' + self.channel_id +"/"+args.yt_vid_id+'.applog')
+        fh.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+        ch.setFormatter(formatter)
+        self.logger.addHandler(fh)
+        self.logger.addHandler(ch)
 
     def __str__(self):
         return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running) + " Live: " + self.videoinfo["live"]
@@ -296,7 +307,7 @@ class SuperchatArchiver:
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
                     self.httpclient = httpx.AsyncClient(http2=True)
-                    self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=config.logger(__name__,logging.DEBUG), client = self.httpclient, exception_handler = self.exception_handling)
+                    self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=self.logger, client = self.httpclient, exception_handler = self.exception_handling)
                     while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
                     if type(self.running_chat.exception) is exceptions.InvalidVideoIdException or type(self.running_chat.exception) is exceptions.ChatParseException:
@@ -471,12 +482,13 @@ class SuperchatArchiver:
         else:
             msg_string = str(logmsg)
         #print(level,msg_string)
-        await self.loop.run_in_executor(self.t_pool,logging.log,level,msg_string)
+        await self.loop.run_in_executor(self.t_pool,self.logger.log,level,msg_string)
         
     def exception_handling(self,loop,context):
         ex_time = datetime.now(timezone.utc)
         print(ex_time.isoformat(), "Exception caught:")
         print(context)
+        self.logger.log(40,context)
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
