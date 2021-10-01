@@ -10,7 +10,7 @@ from merge_SC_logs_v2 import recount_money
 from decimal import Decimal
 
 class SuperchatArchiver:
-    def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30, retry_attempts = 72, min_successful_attempts = 2):
+    def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30, retry_attempts = 72, min_successful_attempts = 2, logger = None):
         self.total_counted_msgs = 0
         self.total_new_members = 0
         self.max_retry_attempts = retry_attempts
@@ -86,17 +86,20 @@ class SuperchatArchiver:
         pathlib.Path('./' + self.channel_id + '/vid_stats/donors').mkdir(parents=True, exist_ok=True)
         pathlib.Path('./' + self.channel_id + '/sc_logs').mkdir(parents=True, exist_ok=True)
         self.placeholders = 0
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-        fh = logging.FileHandler('./' + self.channel_id +"/"+args.yt_vid_id+'.applog')
-        fh.setLevel(logging.DEBUG)
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh.setFormatter(formatter)
-        ch.setFormatter(formatter)
-        self.logger.addHandler(fh)
-        self.logger.addHandler(ch)
+        if logger:
+            self.logger = logger
+        else:
+            self.logger = logging.getLogger(__name__)
+            self.logger.setLevel(logging.DEBUG)
+            fh = logging.FileHandler('./' + self.channel_id +"/"+args.yt_vid_id+'.applog')
+            fh.setLevel(logging.DEBUG)
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.INFO)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            fh.setFormatter(formatter)
+            ch.setFormatter(formatter)
+            self.logger.addHandler(fh)
+            self.logger.addHandler(ch)
 
     def __str__(self):
         return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running) + " Live: " + self.videoinfo["live"]

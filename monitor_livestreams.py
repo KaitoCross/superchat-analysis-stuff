@@ -30,6 +30,17 @@ class channel_monitor:
         self.requests_left = math.floor((self.api_points-self.api_points_used) / (self.max_watched_channels*self.cost_per_request))
         #Calculate how long I have to wait for the next search request - trying not to exceed the 24h API usage limits
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        fh = logging.FileHandler("monitor_"+keyfilepath+".debuglog')
+        fh.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+        ch.setFormatter(formatter)
+        self.logger.addHandler(fh)
+        self.logger.addHandler(ch)
 
     async def main(self):
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
@@ -61,7 +72,7 @@ class channel_monitor:
                 for stream in list(self.video_analysis.keys()):
                     if self.video_analysis[stream] is None and stream not in self.analyzed_streams: #because YouTube lists past streams as "upcoming" for a while after stream ends
                         try:
-                            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".sc-monitor.txt")
+                            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".sc-monitor.txt",logger = self.logger)
                             asyncio.ensure_future(self.video_analysis[stream].main())
                             self.analyzed_streams.append(stream)
                         except ValueError: #for some godforsaken reason, the YouTubeDataApi object throws a ValueError
