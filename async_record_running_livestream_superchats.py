@@ -487,8 +487,7 @@ class SuperchatArchiver:
         
     def exception_handling(self,loop,context):
         ex_time = datetime.now(timezone.utc)
-        print(ex_time.isoformat(), "Exception caught:")
-        print(context)
+        self.logger.log(40,"Exception caught")
         self.logger.log(40,context)
 
 if __name__ =='__main__':
