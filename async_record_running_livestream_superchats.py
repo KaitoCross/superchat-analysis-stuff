@@ -473,7 +473,6 @@ class SuperchatArchiver:
         msg_string = ""
         msg_len = len(logmsg)
         if isinstance(logmsg, tuple):
-            #print("islist")
             part_count = 0
             for msg_part in logmsg:
                 part_count += 1
@@ -484,7 +483,6 @@ class SuperchatArchiver:
             msg_string = logmsg
         else:
             msg_string = str(logmsg)
-        #print(level,msg_string)
         await self.loop.run_in_executor(self.t_pool,self.logger.log,level,msg_string)
         
     def exception_handling(self,loop,context):

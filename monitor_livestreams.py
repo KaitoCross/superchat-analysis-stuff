@@ -8,7 +8,7 @@ from aiohttp_requests import requests
 import math
 
 class channel_monitor:
-    def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt"):
+    def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt", loop=None):
         self.running = True
         self.reset_used = False
         signal.signal(signal.SIGUSR1, self.signal_handler_1)
@@ -32,7 +32,7 @@ class channel_monitor:
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
-        fh = logging.FileHandler("monitor_"+keyfilepath+".debuglog')
+        fh = logging.FileHandler("monitor_"+keyfilepath+".debuglog")
         fh.setLevel(logging.DEBUG)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -41,8 +41,13 @@ class channel_monitor:
         ch.setFormatter(formatter)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
+        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)
+        self.loop = loop
+        
 
     async def main(self):
+        if not self.loop:
+            self.loop = asyncio.get_running_loop()
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
         self.sleep_dur = temp.total_seconds() / self.requests_left
@@ -64,10 +69,10 @@ class channel_monitor:
                             self.running_streams.append(streams['id']['videoId'])
             except ValueError:
                 self.api_points_used = 10000.0
-                print("API Quota exceeded!")
-            print(self.video_analysis)
+                await self.log_output("API Quota exceeded!",30)
+            await self.log_output(self.video_analysis)
             current_time = datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()
-            print(current_time,list(self.video_analysis.keys()))#, planned_streams)
+            await self.log_output((current_time,list(self.video_analysis.keys())))#, planned_streams)
             if self.api_points_used < self.api_points:
                 for stream in list(self.video_analysis.keys()):
                     if self.video_analysis[stream] is None and stream not in self.analyzed_streams: #because YouTube lists past streams as "upcoming" for a while after stream ends
@@ -79,7 +84,7 @@ class channel_monitor:
                             #with a wrong error msg (claiming your API key is "incorrect")
                             #if you exceed your API quota. That's why we do the same in the code above.
                             self.api_points_used = 10000.0
-                            print("API Quota exceeded!")
+                            await self.log_output("API Quota exceeded!",30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
                             self.api_points_used += self.video_analysis[stream].api_points_used
@@ -88,7 +93,7 @@ class channel_monitor:
             #If we somehow used too many API points, calculate waiting time between now an midnight pacific time
             if total_points_used >= (self.api_points-self.desired_leftover_points):
                 time_now = datetime.now(tz=pytz.timezone('America/Los_Angeles'))
-                print(time_now.isoformat())
+                await self.log_output(time_now.isoformat())
                 resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
                 t_delta = resume_at-time_now
                 self.sleep_dur = t_delta.total_seconds()
@@ -108,18 +113,18 @@ class channel_monitor:
                     resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
                     t_delta = resume_at-time_now
                     self.sleep_dur = t_delta.total_seconds()
-            print('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
-            print('approx. '+str(self.api_points-self.api_points_used)+' points left')
-            print(self.requests_left, "requests left")
+            await self.log_output('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
+            await self.log_output('approx. '+str(self.api_points-self.api_points_used)+' points left')
+            await self.log_output((self.requests_left, "requests left"))
             awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
-            print('next run at: ' + awake_at.isoformat() + " Berlin Time")
+            await self.log_output('next run at: ' + awake_at.isoformat() + " Berlin Time")
             await asyncio.sleep(self.sleep_dur)
             #When midnight passes, do this API point reset
             if self.reset_used:
                 self.api_points_used = 0
                 self.requests_left = math.floor(
                     (self.api_points - self.api_points_used) / (self.max_watched_channels * self.cost_per_request))
-                print('used points reset at ' + datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat() + " Berlin time")
+                await self.log_output('used points reset at ' + datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat() + " Berlin time")
                 self.reset_used = False
 
     async def next_specified_hour_datetime(self,w_hour,tzinfo_p):
@@ -156,7 +161,7 @@ class channel_monitor:
         time_until_reset = await self.time_until_specified_hour(w_hour,tzinfo_p)
         while True:
             await asyncio.sleep(time_until_reset.total_seconds())
-            print("midnight reset taking place, old points used:",self.api_points_used)
+            await self.log_output(("midnight reset taking place, old points used:",self.api_points_used))
             self.api_points_used = 0
             await asyncio.sleep(1)
             time_until_reset = await self.time_until_specified_hour(w_hour, tzinfo_p)
@@ -167,24 +172,40 @@ class channel_monitor:
             if self.video_analysis[stream] is not None:
                 points_used_by_analysis += self.video_analysis[stream].api_points_used
         return points_used_by_analysis+self.api_points_used
+    
+    async def log_output(self,logmsg,level = 20):
+        msg_string = ""
+        msg_len = len(logmsg)
+        if isinstance(logmsg, tuple):
+            part_count = 0
+            for msg_part in logmsg:
+                part_count += 1
+                msg_string += str(msg_part)
+                if msg_len > part_count:
+                    msg_string += " "
+        elif isinstance(logmsg, str):
+            msg_string = logmsg
+        else:
+            msg_string = str(logmsg)
+        await self.loop.run_in_executor(self.t_pool,self.logger.log,level,msg_string)
 
     def signal_handler_1(self, sig, frame):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.video_analysis[stream].cancel()
         #self.running = False
-        print("cancelled logging")
+        self.logger.log(10,"cancelled logging")
         points_used_by_analysis = 0.0
         for stream in self.video_analysis.keys():
             if self.video_analysis[stream] is not None:
                 points_used_by_analysis += self.video_analysis[stream].api_points_used
         pts_used = points_used_by_analysis+self.api_points_used
-        print("api points used:", pts_used)
+        self.logger.log(10,"api points used:", pts_used)
         
     def signal_handler_2(self, sig, frame):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
-                print(self.video_analysis[stream])
+                self.logger.log(10,self.video_analysis[stream])
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
@@ -200,8 +221,8 @@ if __name__ =='__main__':
         keyfilepath = args.keyfile
     else:
         keyfilepath = "yt_api_key.txt"
-    monitor = channel_monitor(chan_ids,args.pts,keyfilepath)
     loop = asyncio.get_event_loop()
+    monitor = channel_monitor(chan_ids,args.pts,keyfilepath,loop)
     #loop.set_debug(True)
     #logging.getLogger("asyncio").setLevel(logging.INFO)
     #logging.basicConfig(level=logging.INFO)
