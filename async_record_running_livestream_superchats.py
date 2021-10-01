@@ -351,6 +351,7 @@ class SuperchatArchiver:
                     await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
                     return
             repeats += 1
+            print(repeats,self.cancelled,had_scs,islive)
             if repeats >= 1 and not self.cancelled and had_scs < 2 and islive:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
@@ -457,7 +458,9 @@ class SuperchatArchiver:
     async def log_output(self,logmsg):
         await self.loop.run_in_executor(self.t_pool,print,logmsg)
         
-    def exception_handling(loop,context):
+    def exception_handling(self,loop,context):
+        ex_time = datetime.now(timezone.utc)
+        print(ex_time.isoformat(), "Exception caught:")
         print(context)
 
 if __name__ =='__main__':
