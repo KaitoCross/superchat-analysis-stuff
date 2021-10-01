@@ -187,7 +187,7 @@ class SuperchatArchiver:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
-        await self.log_output(self.videoinfo)
+        await self.log_output(self.videoinfo,10)
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
@@ -210,14 +210,14 @@ class SuperchatArchiver:
             old_meta["liveStreamingDetails"] = old_time_meta
             if not self.videoinfo:
                 self.videoinfo = copy.deepcopy(self.skeleton_dict)
-            await self.log_output(self.videoinfo,20)
+            await self.log_output(self.videoinfo,10)
             if self.videoinfo["title"] != old_meta["title"] and self.videoinfo["title"]:
                 old_meta["old_title"] = old_meta["title"]
                 old_meta["title"] = self.videoinfo["title"]
             old_meta_keys_l = [k.lower() for k in old_meta.keys()]
             old_meta_keys_n = [k for k in old_meta.keys()]
             old_meta_keys = dict(zip(old_meta_keys_l, old_meta_keys_n))
-            #await self.log_output(old_meta_keys)
+            #await self.log_output(old_meta_keys,10)
             for info in self.skeleton_dict.keys():
                 if info.lower() in old_meta_keys_l:
                     if type(old_meta[old_meta_keys[info.lower()]]) is datetime:
@@ -232,7 +232,7 @@ class SuperchatArchiver:
                             await self.log_output((info,"key not found",self.videoinfo[info],self.videoinfo.keys()))
                             self.videoinfo[info] = 0
                     else:
-                        await self.log_output("else case",20)
+                        await self.log_output("else case",10)
             self.channel_id = old_meta["channel_id"]
             self.videoinfo["channel"] = old_meta["name"]
             self.videoinfo["channelId"] = self.channel_id
