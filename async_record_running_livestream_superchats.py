@@ -363,7 +363,7 @@ class SuperchatArchiver:
                     await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
                     return
             repeats += 1
-            await self.log_output((repeats,self.cancelled,had_scs,islive))
+            await self.log_output((repeats,self.cancelled,had_scs,self.videoinfo["live"]))
             if repeats >= 1 and not self.cancelled and had_scs < 2 and islive:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
