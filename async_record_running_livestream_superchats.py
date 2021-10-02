@@ -327,8 +327,6 @@ class SuperchatArchiver:
                         if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
                             await self.log_output(("Error! Chat monitor ended prematurely!",self.running_chat.is_alive()))
                             self.chat_err = True
-                        else:
-                            islive = False
                     else:
                         islive = False
                     if self.videoinfo["caught_while"] in ["upcoming","live"]:
@@ -503,7 +501,7 @@ if __name__ =='__main__':
     keyfile.close()
     loop = asyncio.get_event_loop()
     analysis = SuperchatArchiver(args.yt_vid_id,yt_api_key,args.wordcloud,loop,args.suffix)
-    logging.basicConfig(level=logging.INFO)
+    #logging.basicConfig(level=logging.INFO)
     try:
         loop.run_until_complete(analysis.main())
     except asyncio.CancelledError:
