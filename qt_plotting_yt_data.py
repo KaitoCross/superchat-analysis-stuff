@@ -96,7 +96,10 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                 testtime = stream_hour
                 endtime = stream[0] + stream[1]
                 while testtime <= endtime:
-                    heatmap_data[testtime.weekday()][testtime.time().hour] += 1
+                    if endtime - testtime < timedelta(hours=1):
+                        heatmap_data[testtime.weekday()][testtime.time().hour] += (endtime - testtime)/timedelta(hours=1)
+                    else:
+                        heatmap_data[testtime.weekday()][testtime.time().hour] += 1
                     #if testtime.weekday() >= 0 and testtime.weekday() <= 4:
                     #    heatmap_data[7][testtime.time().hour] += 1
                     #elif testtime.weekday() >= 5:
@@ -114,15 +117,15 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.heatmap_widget.canvas.ax.set_title("Stream times heatmap")
         self.heatmap_widget.canvas.ax.set_ylabel("Day of week")
         self.heatmap_widget.canvas.ax.set_xlabel("Time of day")
-        self.heatmap_widget.canvas.ax.set_xticks(np.arange(24))
-        self.heatmap_widget.canvas.ax.set_yticks(np.arange(len(days)))
-        self.heatmap_widget.canvas.ax.set_yticklabels(days)
         heatmap = plt.pcolor(heatmap_data)
         self.heatmap_widget.canvas.fig.colorbar(heatmap,self.heatmap_widget.canvas.ax2)
         self.heatmap_widget.canvas.ax.imshow(heatmap_data)
+        self.heatmap_widget.canvas.ax.set_yticks(np.arange(len(days)))
+        self.heatmap_widget.canvas.ax.set_yticklabels(days)
+        self.heatmap_widget.canvas.ax.set_xticks(np.arange(24))
         for y in range(heatmap_data.shape[0]):
             for x in range(heatmap_data.shape[1]):
-                text = self.plotWidget_2.canvas.ax.text(x, y, heatmap_data[y, x],ha="center", va="center", color="w")
+                text = self.heatmap_widget.canvas.ax.text(x, y, "{:.2f}".format(heatmap_data[y, x]),ha="center", va="center", color="w")
         self.heatmap_widget.canvas.draw()
         #xFmt = mdates.DateFormatter('%H:%M')
         self.donortiming.canvas.ax.clear()
