@@ -37,38 +37,12 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.populate_widgets()
 
     def plot_data(self):
-        self.plotWidget.canvas.ax.clear()
         startTime = self.startDateTimeEditor.dateTime()
         endTime = self.endDateTimeEditor.dateTime()
         startTime.setOffsetFromUtc(0)
         endTime.setOffsetFromUtc(0)
-        self.plotWidget.canvas.ax.set_xlim(startTime.toPyDateTime().date(),endTime.toPyDateTime().date())
-        datetime_list, date_list, time_list, donation_list = self.get_time_series_data(startTime,endTime)
-        self.plotWidget.canvas.ax.scatter(date_list, time_list)
-        yFmt = mdates.DateFormatter('%H:%M')
-        xFmt = mdates.DateFormatter('%d.%m.%y')
-        self.plotWidget.canvas.ax.xaxis.set_major_formatter(xFmt)
-        self.plotWidget.canvas.ax.yaxis.set_major_formatter(yFmt)
-        self.plotWidget.canvas.ax.set_title("Superchat time")
-        self.plotWidget.canvas.ax.set_ylabel("Time of day")
-        self.plotWidget.canvas.ax.set_xlabel("Date")
-        self.plotWidget.canvas.draw()
-        self.plotWidget_2.canvas.ax.clear()
-        self.plotWidget_2.canvas.ax.set_xlim(startTime.toPyDateTime(),endTime.toPyDateTime())
-        self.plotWidget_2.canvas.ax.set_ylim(0.0,24.0)
-        self.plotWidget_2.canvas.ax.xaxis.set_major_formatter(xFmt)
-        self.plotWidget_2.canvas.ax.set_title("Streaming times")
-        self.plotWidget_2.canvas.ax.set_ylabel("Time of day")
-        self.plotWidget_2.canvas.ax.set_xlabel("Date")
-        heatmap_data = np.zeros((7,24))
-        loc = plticker.MultipleLocator(base=2.0) # this locator puts ticks at regular intervals
-        checked_chans = []
-        for index in range(self.channelListWidget.count()):
-            if self.channelListWidget.item(index).checkState() == Qt.Checked:
-                checked_chans.append(self.channelListWidget.item(index))
-        namelist = [x.text() for x in checked_chans]
+        namelist = self.get_checked_chans()
         namelist.sort()
-        patches=[]
         self.color_dict = self.getcolors(namelist)
         self.color_dict["Europe"] = (0.0,0.0,1.0)
         self.color_dict["North America"] = (1.0,0.0,0.0)
@@ -76,41 +50,63 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.color_dict["Oceania"] = (0.0,0.0,0.0)
         self.color_dict["Africa"] = (1.0,1.0,0.0)
         self.color_dict["South America"] = (1.0,165/255.0,0.0)
-        namecount = 0
+        self.plot_superchat_timing(startTime,endTime)
+        stream_dict = {}
         for name in namelist:
-            stream_list = []
-            stream_list = stream_list + self.get_past_schedule(startTime,endTime,name)
-            stream_list_new = []
+            stream_dict[name] = (self.get_stream_sched(startTime,endTime,name))
+        heatmap_data = self.get_heatmap_data(stream_dict)
+        time_dict, coord_dict, area_sums = self.get_supa_time(startTime,endTime)
+        self.plot_timetable(stream_dict,startTime,endTime)
+        self.plot_heatmap(heatmap_data)
+        self.plot_donor_timing(coord_dict,area_sums)
+        self.plot_area_donor_timing(area_sums)
+        self.plot_area_donor_per_streamhour(area_sums,heatmap_data)
+        return
+    
+    
+    def plot_superchat_timing(self,startTime,endTime):
+        datetime_list, date_list, time_list, donation_list = self.get_time_series_data(startTime,endTime)
+        self.sc_timing_w.canvas.ax.clear()
+        self.sc_timing_w.canvas.ax.set_xlim(startTime.toPyDateTime().date(),endTime.toPyDateTime().date())
+        self.sc_timing_w.canvas.ax.scatter(date_list, time_list)
+        yFmt = mdates.DateFormatter('%H:%M')
+        xFmt = mdates.DateFormatter('%d.%m.%y')
+        self.sc_timing_w.canvas.ax.xaxis.set_major_formatter(xFmt)
+        self.sc_timing_w.canvas.ax.yaxis.set_major_formatter(yFmt)
+        self.sc_timing_w.canvas.ax.set_title("Superchat time")
+        self.sc_timing_w.canvas.ax.set_ylabel("Time of day")
+        self.sc_timing_w.canvas.ax.set_xlabel("Date")
+        self.sc_timing_w.canvas.draw()
+        
+    def plot_timetable(self,stream_dict,startTime,endTime):
+        self.timetable_wid.canvas.ax.clear()
+        self.timetable_wid.canvas.ax.set_xlim(startTime.toPyDateTime(),endTime.toPyDateTime())
+        self.timetable_wid.canvas.ax.set_ylim(0.0,24.0)
+        xFmt = mdates.DateFormatter('%d.%m.%y')
+        self.timetable_wid.canvas.ax.xaxis.set_major_formatter(xFmt)
+        self.timetable_wid.canvas.ax.set_title("Streaming times")
+        self.timetable_wid.canvas.ax.set_ylabel("Time of day")
+        self.timetable_wid.canvas.ax.set_xlabel("Date")
+        loc = plticker.MultipleLocator(base=2.0) # this locator puts ticks at regular intervals
+        patches=[]
+        namecount = 0
+        for name in stream_dict.keys():
             col = self.choose_color(name)
-            #print(col)
             patches.append(mpatches.Patch(color=col, label = name))
-            for stream in stream_list:
-                stream_list_new = stream_list_new + self.check_midnight(stream[0],stream[1])
-            for stream in stream_list_new:
-                time_width = timedelta(days=1) / len(namelist)
+            for stream in stream_dict[name]:
+                time_width = timedelta(days=1) / len(stream_dict.keys())
                 stream_date = stream[0].replace(hour=0, minute=0, second=0, microsecond=0)
                 x_range = [(stream_date+time_width*namecount,time_width)]
                 y_range = (self.time2delta(stream[0].timetz()).seconds/60.0/60.0,stream[1].seconds/60.0/60.0)
-                self.plotWidget_2.canvas.ax.broken_barh(x_range,y_range, alpha = 0.5, color = col)
-                stream_hour = stream[0].replace(minute=0, second=0, microsecond=0)
-                testtime = stream_hour
-                endtime = stream[0] + stream[1]
-                while testtime <= endtime:
-                    if endtime - testtime < timedelta(hours=1):
-                        heatmap_data[testtime.weekday()][testtime.time().hour] += (endtime - testtime)/timedelta(hours=1)
-                    else:
-                        heatmap_data[testtime.weekday()][testtime.time().hour] += 1
-                    #if testtime.weekday() >= 0 and testtime.weekday() <= 4:
-                    #    heatmap_data[7][testtime.time().hour] += 1
-                    #elif testtime.weekday() >= 5:
-                    #    heatmap_data[8][testtime.time().hour] += 1
-                    testtime = testtime + timedelta(hours=1)
+                self.timetable_wid.canvas.ax.broken_barh(x_range,y_range, alpha = 0.5, color = col)
             namecount += 1
-        #print(heatmap_data)
+        days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+        self.timetable_wid.canvas.ax.yaxis.set_major_locator(loc)
+        self.timetable_wid.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3, handles=patches)
+        self.timetable_wid.canvas.draw()
+        
+    def plot_heatmap(self,heatmap_data):
         days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']#,'Weekdays','Weekend']
-        self.plotWidget_2.canvas.ax.yaxis.set_major_locator(loc)
-        self.plotWidget_2.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3, handles=patches)
-        self.plotWidget_2.canvas.draw()
         self.heatmap_widget.canvas.ax.clear()
         self.heatmap_widget.canvas.ax2.clear()
         #self.heatmap_widget.canvas.fig.clear()
@@ -127,29 +123,75 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             for x in range(heatmap_data.shape[1]):
                 text = self.heatmap_widget.canvas.ax.text(x, y, "{:.2f}".format(heatmap_data[y, x]),ha="center", va="center", color="w")
         self.heatmap_widget.canvas.draw()
+        
+    def get_heatmap_data(self,stream_dict):
+        heatmap_data = np.zeros((7,24))
+        for name in stream_dict.keys():
+            for stream in stream_dict[name]:
+                stream_hour = stream[0].replace(minute=0, second=0, microsecond=0)
+                testtime = stream_hour
+                endtime = stream[0] + stream[1]
+                #print(stream,testtime,endtime)
+                while testtime <= endtime:
+                    if endtime - testtime < timedelta(hours=1):
+                        heatmap_data[testtime.weekday()][testtime.time().hour] += (endtime - testtime)/timedelta(hours=1)
+                    else:
+                        heatmap_data[testtime.weekday()][testtime.time().hour] += 1
+                    #if testtime.weekday() >= 0 and testtime.weekday() <= 4:
+                    #    heatmap_data[7][testtime.time().hour] += 1
+                    #elif testtime.weekday() >= 5:
+                    #    heatmap_data[8][testtime.time().hour] += 1
+                    testtime = testtime + timedelta(hours=1)
+        return heatmap_data
+        
+    def plot_donor_timing(self, coord_dict, area_sums):
         #xFmt = mdates.DateFormatter('%H:%M')
+        loc = plticker.MultipleLocator(base=2.0)
         self.donortiming.canvas.ax.clear()
         self.donortiming.canvas.ax.set_title("Donors per currency at which time")
         self.donortiming.canvas.ax.xaxis.set_major_locator(loc)
         #self.donortiming.canvas.ax.xaxis.set_major_formatter(xFmt)
         self.donortiming.canvas.ax.set_ylabel("amount of unique superchatters")
         self.donortiming.canvas.ax.set_xlabel("Time of day")
-        time_dict, coord_dict, area_sums = self.get_supa_time(startTime,endTime)
         for currency in coord_dict:
             self.donortiming.canvas.ax.plot(coord_dict[currency]["users"],label = currency, color = self.choose_color(currency))
         self.donortiming.canvas.ax.legend(loc="right")
         self.donortiming.canvas.draw()
+        return
+    
+    def plot_area_donor_timing(self,area_sums):
         self.area_sc_timing_draw.canvas.ax.clear()
+        loc = plticker.MultipleLocator(base=2.0)
         self.area_sc_timing_draw.canvas.ax.xaxis.set_major_locator(loc)
         self.area_sc_timing_draw.canvas.ax.set_title("Donors per region at which time")
         self.area_sc_timing_draw.canvas.ax.set_ylabel("amount of unique superchatters")
         self.area_sc_timing_draw.canvas.ax.set_xlabel("Time of day")
-        #print(area_sums)
         for area in area_sums.keys():
             self.area_sc_timing_draw.canvas.ax.plot(area_sums[area], label = str(area), color = self.choose_color(area))
         self.area_sc_timing_draw.canvas.ax.legend(loc="right")
         self.area_sc_timing_draw.canvas.draw()
-        
+        return
+    
+    def plot_area_donor_per_streamhour(self,area_sums,heatmap_data):
+        streamhours = np.zeros(24)
+        for day in heatmap_data:
+            streamhours = streamhours + day
+        print(streamhours)
+        self.area_strhour_sc_wid.canvas.ax.clear()
+        loc = plticker.MultipleLocator(base=2.0)
+        self.area_strhour_sc_wid.canvas.ax.xaxis.set_major_locator(loc)
+        self.area_strhour_sc_wid.canvas.ax.set_title("Donors per region at which time per running stream")
+        self.area_strhour_sc_wid.canvas.ax.set_ylabel("amount of average unique superchatters")
+        self.area_strhour_sc_wid.canvas.ax.set_xlabel("Time of day")
+        for area in area_sums.keys():
+            print(area,area_sums[area])
+            area_avg = np.asarray(area_sums[area])/streamhours
+            self.area_strhour_sc_wid.canvas.ax.plot(area_avg, label = str(area), color = self.choose_color(area))
+        self.area_strhour_sc_wid.canvas.ax.plot(streamhours, label = "Streamhours offered", color = self.choose_color("total"))
+        self.area_strhour_sc_wid.canvas.ax.legend(loc="right")
+        self.area_strhour_sc_wid.canvas.draw()
+        return
+    
     def populate_widgets(self):
         self.db = QSqlDatabase.addDatabase('QPSQL')
         self.db.setHostName(self.pgsql_creds["host"])
@@ -216,6 +258,14 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.db.close()
         return color_dict
     
+    def get_stream_sched(self,startTime,endTime,name):
+        stream_list = []
+        stream_list = stream_list + self.get_past_schedule(startTime,endTime,name)
+        stream_list_new = []
+        for stream in stream_list:
+                stream_list_new = stream_list_new + self.check_midnight(stream[0],stream[1])
+        return stream_list_new
+    
     def get_past_schedule(self,startTime,endTime,chan_name="None"):
         #names = "("
         #for n in namelist:
@@ -238,7 +288,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             starttime = query.value(0)
             starttime = starttime.toPyDateTime() if starttime else 0
             duration = timedelta(seconds=query.value(1))
-            plannedstarttime = query.value(2).toPyDateTime()
+            plannedstarttime = query.value(2).toPyDateTime() if query.value(2) else None
             vid = query.value(5)
             endedLogAt = query.value(3)
             endedLogAt = endedLogAt.toPyDateTime() if endedLogAt else 0

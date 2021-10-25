@@ -89,13 +89,13 @@
      </sizepolicy>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="sc_tab">
      <attribute name="title">
       <string>Superchat timing</string>
      </attribute>
-     <widget class="MplWidget" name="plotWidget" native="true">
+     <widget class="MplWidget" name="sc_timing_w" native="true">
       <property name="geometry">
        <rect>
         <x>10</x>
@@ -136,11 +136,26 @@
       </property>
      </widget>
     </widget>
+    <widget class="QWidget" name="area_sc_per_shour">
+     <attribute name="title">
+      <string>Donors per area per streamhour</string>
+     </attribute>
+     <widget class="MplWidget" name="area_strhour_sc_wid" native="true">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
     <widget class="QWidget" name="timetable_tab">
      <attribute name="title">
       <string>streaming schedule</string>
      </attribute>
-     <widget class="MplWidget" name="plotWidget_2" native="true">
+     <widget class="MplWidget" name="timetable_wid" native="true">
       <property name="geometry">
        <rect>
         <x>10</x>
