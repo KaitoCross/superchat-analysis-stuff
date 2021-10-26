@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
 from youtube_api import YouTubeDataAPI
-import argparse, time, os, asyncio, pytz, logging, signal, sys, concurrent.futures
+import argparse, time, os, asyncio, pytz, logging, signal, sys, concurrent.futures, traceback
 from datetime import datetime, timezone, timedelta
 import aiohttp
 from aiohttp_requests import requests
@@ -58,9 +58,14 @@ class channel_monitor:
             try:
                 for chan_id in self.chan_ids:
                     #catch only planned streams. Caution! API returns recently finished streams as "upcoming" too!
-                    planstreams_search = await requests.get(
-                        'https://youtube.googleapis.com/youtube/v3/search?part=id&channelId=' + chan_id + '&eventType=upcoming&type=video&key=' + self.yt_api_key)
-                    planstreams_raw_json = await planstreams_search.json()
+                    try:
+                        planstreams_search = await requests.get(
+                            'https://youtube.googleapis.com/youtube/v3/search?part=id&channelId=' + chan_id + '&eventType=upcoming&type=video&key=' + self.yt_api_key)
+                        planstreams_raw_json = await planstreams_search.json()
+                    except Exception as e:
+                        self.log_output(e,40)
+                        self.log_output(traceback.format_exc(),40)
+                        continue
                     if "error" in planstreams_raw_json.keys():
                         if planstreams_raw_json['error']['code'] == 403:
                             raise ValueError("API Quota exceeded!")
