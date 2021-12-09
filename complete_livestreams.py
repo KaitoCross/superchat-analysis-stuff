@@ -34,7 +34,7 @@ class redo_recorder:
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
-        query = "select video_id from video where retries_of_rerecording_had_scs = 2 and caught_while <> 'none' and scheduledstarttime < $1 order by scheduledstarttime"
+        query = "select video_id from video where retries_of_rerecording_had_scs = 2 and caught_while <> 'none' and scheduledstarttime < $1 order by scheduledstarttime desc"
         old_streams = await self.conn.fetch(query,datetime.now(timezone.utc) - timedelta(hours = 12))
         recorded_set = set(old_streams)
         channel_meta = self.yapi.get_channel_metadata(channel_id=self.chan_id,parser=None,list=["contentDetails"])
