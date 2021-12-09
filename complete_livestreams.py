@@ -9,7 +9,7 @@ import math
 from youtube_api import YouTubeDataAPI
 
 class redo_recorder:
-    def __init__(self,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt",chan_id):
+    def __init__(self,chan_id,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt"):
         self.running = True
         self.reset_used = False
         signal.signal(signal.SIGUSR1, self.signal_handler_1)
@@ -40,7 +40,7 @@ class redo_recorder:
         self.api_points_used += 1
         upload_playlist = channel_meta["contentDetails"]["relatedPlaylists"]["uploads"]
         uploaded_videos = self.yapi.get_videos_from_playlist_id(upload_playlist,parser=None,list=["contentDetails"])
-        uploaded_videos_sort = sorted(uploaded_videos,key = lambda d: d["snippet"]["publishedAt"])
+        uploaded_videos_sort = sorted(uploaded_videos,key = lambda d: d["snippet"]["publishedAt"], reverse = True)
         self.api_points_used += 1
         for videos in uploaded_videos_sort:
             publishedDate = datetime.strptime(videos["snippet"]["publishedAt"]+ " +0000", "%Y-%m-%dT%H:%M:%SZ %z")
@@ -97,7 +97,7 @@ if __name__ =='__main__':
         keyfilepath = args.keyfile
     else:
         keyfilepath = "yt_api_key.txt"
-    monitor = redo_recorder(args.pts,keyfilepath,args.channel_id)
+    monitor = redo_recorder(args.channel_id,args.pts,keyfilepath)
     loop = asyncio.get_event_loop()
     #loop.set_debug(True)
     #logging.getLogger("asyncio").setLevel(logging.INFO)
