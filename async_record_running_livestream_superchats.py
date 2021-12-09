@@ -91,7 +91,7 @@ class SuperchatArchiver:
         else:
             self.logger = logging.getLogger(__name__)
             self.logger.setLevel(logging.DEBUG)
-            fh = logging.FileHandler('./' + self.channel_id +"/"+args.yt_vid_id+'.applog')
+            fh = logging.FileHandler('./' + self.channel_id +"/"+self.yt_vid_id+'.applog')
             fh.setLevel(logging.DEBUG)
             ch = logging.StreamHandler()
             ch.setLevel(logging.INFO)
