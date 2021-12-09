@@ -27,6 +27,7 @@ class redo_recorder:
         self.desired_leftover_points = 100.0 #for safety measure since the SuperchatArchiver objects will use some API points
         self.chan_id = chan_id
         self.videolist = []
+        self.yapi = YouTubeDataAPI(self.yt_api_key)
 
     async def main(self):
         cutoff_date = datetime(2020, 6, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
