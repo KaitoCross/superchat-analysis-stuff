@@ -23,7 +23,7 @@ class channel_monitor:
         self.chan_ids = chan_list
         self.running_streams = []
         self.analyzed_streams = []
-        self.api_points = 100.0 #available API points
+        self.api_points = 300.0 #available API points
         self.desired_leftover_points = 10.0 #for safety measure since the SuperchatArchiver objects will use some API points
         self.max_watched_channels = len(self.chan_ids)
         self.cost_per_request = 2.0
@@ -78,35 +78,31 @@ class channel_monitor:
         while self.running:
             total_points_used = await self.total_api_points_used()
             #If we somehow used too many API points, calculate waiting time between now an midnight pacific time
-            if total_points_used >= (self.api_points-self.desired_leftover_points):
+            await self.log_output("collecting superchats")
+            for stream in self.videolist.keys():
+                await self.wait_for_points()
+                await self.log_output(stream)
+                self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".retrospective-archive.txt",logger = self.logger)
+                await self.video_analysis[stream].main()
+                self.analyzed_streams.append(stream)
+            self.running = False
+
+                
+    async def wait_for_points(self):
+        total_points_used = await self.total_api_points_used()
+        if total_points_used >= (self.api_points-self.desired_leftover_points):
                 await self.log_output("point limit reached")
                 time_now = datetime.now(tz=pytz.timezone('America/Los_Angeles'))
                 await self.log_output(time_now.isoformat())
                 resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
                 t_delta = resume_at-time_now
                 self.sleep_dur = t_delta.total_seconds()
-            else:
-                #execute
-                await self.log_output("collecting superchats")
-                for stream in self.videolist.keys():
-                    await self.log_output(stream)
-                    self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".retrospective-archive.txt",logger = self.logger)
-                    await self.video_analysis[stream].main()
-                    self.analyzed_streams.append(stream)
-
-            await self.log_output('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
-            await self.log_output('approx. '+str(self.api_points-self.api_points_used)+' points left')
-            awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
-            await self.log_output('next run at: ' + awake_at.isoformat() + " Berlin Time")
-            await asyncio.sleep(self.sleep_dur)
-            #When midnight passes, do this API point reset
-            if self.reset_used:
-                self.api_points_used = 0
-                self.requests_left = math.floor(
-                    (self.api_points - self.api_points_used) / (self.max_watched_channels * self.cost_per_request))
-                await self.log_output('used points reset at ' + datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat() + " Berlin time")
-                self.reset_used = False
-
+                await self.log_output('sleeping for ' + str(self.sleep_dur/60) + ' minutes')
+                await self.log_output('approx. '+str(self.api_points-self.api_points_used)+' points left')
+                awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
+                await self.log_output('next run at: ' + awake_at.isoformat() + " Berlin Time")
+                await asyncio.sleep(self.sleep_dur)
+                
     async def next_specified_hour_datetime(self,w_hour,tzinfo_p):
         time_now = datetime.now(tz=tzinfo_p)
         if time_now.hour >= w_hour:
