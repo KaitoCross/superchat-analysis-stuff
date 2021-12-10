@@ -7,6 +7,7 @@ import aiohttp
 from aiohttp_requests import requests
 import math
 from youtube_api import YouTubeDataAPI
+from pytchat import config
 
 class redo_recorder:
     def __init__(self,chan_id,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt"):
@@ -28,6 +29,18 @@ class redo_recorder:
         self.chan_id = chan_id
         self.videolist = []
         self.yapi = YouTubeDataAPI(self.yt_api_key)
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        fh = logging.FileHandler(keyfilepath+"record_completer.debuglog")
+        fh.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        dbg_formatter = config.mylogger.MyFormatter()
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(dbg_formatter)
+        ch.setFormatter(formatter)
+        self.logger.addHandler(fh)
+        self.logger.addHandler(ch)
 
     async def main(self):
         cutoff_date = datetime(2020, 6, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
@@ -56,7 +69,7 @@ class redo_recorder:
             self.running_streams.append(entry)
         print(self.video_analysis)
         for stream in list(self.video_analysis.keys()):
-            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2)
+            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2,logger = self.logger)
             try:
                 await self.video_analysis[stream].main()
             except pytchat.exceptions.InvalidVideoIdException:
