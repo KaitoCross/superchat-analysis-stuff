@@ -10,7 +10,7 @@ from merge_SC_logs_v2 import recount_money
 from decimal import Decimal
 
 class SuperchatArchiver:
-    def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30, retry_attempts = 72, min_successful_attempts = 2, logger = None):
+    def __init__(self,vid_id, api_key, gen_WC = False, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30, retry_attempts = 72, min_successful_attempts = 2, logger = None, t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)):
         self.total_counted_msgs = 0
         self.total_new_members = 0
         self.max_retry_attempts = retry_attempts
@@ -21,7 +21,7 @@ class SuperchatArchiver:
         self.ended_at = None
         self.cancelled = False
         self.loop = loop
-        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)
+        self.t_pool = t_pool
         self.api_points_used = 1.0
         self.api = YouTubeDataAPI(api_key) #uses 1p to check key
         self.videoid = vid_id

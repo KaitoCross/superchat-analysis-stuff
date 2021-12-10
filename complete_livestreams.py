@@ -41,6 +41,7 @@ class redo_recorder:
         ch.setFormatter(formatter)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
+        self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)
 
     async def main(self):
         cutoff_date = datetime(2020, 6, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
@@ -69,7 +70,7 @@ class redo_recorder:
             self.running_streams.append(entry)
         print(self.video_analysis)
         for stream in list(self.video_analysis.keys()):
-            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2,logger = self.logger)
+            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2,logger = self.logger, t_pool = self.thread_pool)
             try:
                 await self.video_analysis[stream].main()
             except pytchat.exceptions.InvalidVideoIdException:
