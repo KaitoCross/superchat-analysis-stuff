@@ -43,7 +43,7 @@ class channel_monitor:
         ch.setFormatter(formatter)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
-        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=128)
+        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=300)
         self.loop = loop
         
 
