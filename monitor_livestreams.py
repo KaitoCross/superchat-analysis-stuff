@@ -43,7 +43,7 @@ class channel_monitor:
         ch.setFormatter(formatter)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
-        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)
+        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=128)
         self.loop = loop
         
 
@@ -84,7 +84,7 @@ class channel_monitor:
                 for stream in list(self.video_analysis.keys()):
                     if self.video_analysis[stream] is None and stream not in self.analyzed_streams: #because YouTube lists past streams as "upcoming" for a while after stream ends
                         try:
-                            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".sc-monitor.txt",logger = self.logger)
+                            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".sc-monitor.txt",logger = self.logger, t_pool = self.t_pool)
                             asyncio.ensure_future(self.video_analysis[stream].main())
                             self.analyzed_streams.append(stream)
                         except ValueError: #for some godforsaken reason, the YouTubeDataApi object throws a ValueError
