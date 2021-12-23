@@ -41,7 +41,7 @@ class redo_recorder:
         ch.setFormatter(formatter)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
-        self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)
+        self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=128)
 
     async def main(self):
         cutoff_date = datetime(2020, 6, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
@@ -76,6 +76,7 @@ class redo_recorder:
             except pytchat.exceptions.InvalidVideoIdException:
                 print("aaa")
             self.analyzed_streams.append(stream)
+        print("Streams analyzed:",len(self.analyzed_streams))
 
     async def total_api_points_used(self):
         points_used_by_analysis = 0.0
