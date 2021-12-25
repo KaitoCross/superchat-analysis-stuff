@@ -70,7 +70,7 @@ class redo_recorder:
             self.running_streams.append(entry)
         print(self.video_analysis)
         for stream in list(self.video_analysis.keys()):
-            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2,logger = self.logger, t_pool = self.thread_pool)
+            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2,logger = self.logger, t_pool = self.thread_pool, minutes_wait = 0.5)
             try:
                 await self.video_analysis[stream].main()
             except pytchat.exceptions.InvalidVideoIdException:
