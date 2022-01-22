@@ -48,8 +48,8 @@ class redo_recorder:
         pgsql_config_file = open("postgres-config.json")
         pgsql_creds = json.load(pgsql_config_file)
         self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
-        query = "select video_id from video where retries_of_rerecording_had_scs = 2 and caught_while <> 'none' and scheduledstarttime < $1 order by scheduledstarttime desc"
-        old_streams = await self.conn.fetch(query,datetime.now(timezone.utc) - timedelta(hours = 12))
+        query = "select video_id from video where retries_of_rerecording_had_scs = 2 and caught_while <> 'none' and scheduledstarttime < $1 and channel_id = $2 order by scheduledstarttime desc"
+        old_streams = await self.conn.fetch(query,datetime.now(timezone.utc) - timedelta(hours = 12),self.chan_id)
         recorded_set = set(old_streams)
         channel_meta = self.yapi.get_channel_metadata(channel_id=self.chan_id,parser=None,list=["contentDetails"])
         self.api_points_used += 1
@@ -64,7 +64,7 @@ class redo_recorder:
             self.videolist.append(videos["snippet"]["resourceId"]["videoId"])
         channel_set = set(self.videolist)
         record_set = channel_set - recorded_set
-        print(record_set)
+        print(len(channel_set), len(record_set), record_set)
         for entry in record_set:
             self.video_analysis.setdefault(entry,None)
             self.running_streams.append(entry)
