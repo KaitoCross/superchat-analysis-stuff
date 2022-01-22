@@ -99,7 +99,7 @@ class redo_recorder:
                 self.video_analysis[stream].cancel()
         #self.running = False
         print("cancelled logging")
-        pts_used = syn_total_api_points_used()
+        pts_used = self.syn_total_api_points_used()
         print("api points used:", pts_used)
         
     def signal_handler_2(self, sig, frame):
