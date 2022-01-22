@@ -70,7 +70,7 @@ class redo_recorder:
             self.running_streams.append(entry)
         print(self.video_analysis)
         for stream in list(self.video_analysis.keys()):
-            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2,logger = self.logger, t_pool = self.thread_pool, minutes_wait = 0.5)
+            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".completer.txt",min_successful_attempts = 2,logger = self.logger, t_pool = self.thread_pool, minutes_wait = 0.5)
             try:
                 await self.video_analysis[stream].main()
             except pytchat.exceptions.InvalidVideoIdException:
@@ -84,6 +84,14 @@ class redo_recorder:
             if self.video_analysis[stream] is not None:
                 points_used_by_analysis += self.video_analysis[stream].api_points_used
         return points_used_by_analysis+self.api_points_used
+    
+    def syn_total_api_points_used(self):
+        points_used_by_analysis = 0.0
+        for stream in self.video_analysis.keys():
+            if self.video_analysis[stream] is not None:
+                points_used_by_analysis += self.video_analysis[stream].api_points_used
+        pts_used = points_used_by_analysis+self.api_points_used
+        return pts_used
 
     def signal_handler_1(self, sig, frame):
         for stream in self.video_analysis:
@@ -91,11 +99,7 @@ class redo_recorder:
                 self.video_analysis[stream].cancel()
         #self.running = False
         print("cancelled logging")
-        points_used_by_analysis = 0.0
-        for stream in self.video_analysis.keys():
-            if self.video_analysis[stream] is not None:
-                points_used_by_analysis += self.video_analysis[stream].api_points_used
-        pts_used = points_used_by_analysis+self.api_points_used
+        pts_used = syn_total_api_points_used()
         print("api points used:", pts_used)
         
     def signal_handler_2(self, sig, frame):
@@ -106,6 +110,8 @@ class redo_recorder:
                 worked_on += 1
         not_touched = len(self.video_analysis) - worked_on
         print("worked on",worked_on,"items out of",len(self.video_analysis),"remaining:",not_touched)
+        pts_used = syn_total_api_points_used()
+        print("api points used:", pts_used)
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
