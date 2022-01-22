@@ -99,9 +99,13 @@ class redo_recorder:
         print("api points used:", pts_used)
         
     def signal_handler_2(self, sig, frame):
+        worked_on = 0
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 print(self.video_analysis[stream])
+                worked_on += 1
+        not_touched = len(self.video_analysis) - worked_on
+        print("worked on",worked_on,"items out of",len(self.video_analysis),"remaining:",not_touched)
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
