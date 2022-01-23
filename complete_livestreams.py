@@ -110,7 +110,7 @@ class redo_recorder:
                 worked_on += 1
         not_touched = len(self.video_analysis) - worked_on
         print("worked on",worked_on,"items out of",len(self.video_analysis),"remaining:",not_touched)
-        pts_used = syn_total_api_points_used()
+        pts_used = self.syn_total_api_points_used()
         print("api points used:", pts_used)
 
 if __name__ =='__main__':
