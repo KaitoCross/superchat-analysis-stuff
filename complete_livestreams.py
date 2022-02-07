@@ -64,11 +64,12 @@ class redo_recorder:
             self.videolist.append(videos["snippet"]["resourceId"]["videoId"])
         channel_set = set(self.videolist)
         record_set = channel_set - recorded_set
-        print(len(channel_set), len(record_set), record_set)
+        print("recorded:",recorded_set)
+        print("archived on youtube:", channel_set)
+        print("to be re-recorded:", len(channel_set), len(record_set), record_set)
         for entry in record_set:
             self.video_analysis.setdefault(entry,None)
             self.running_streams.append(entry)
-        print(self.video_analysis)
         for stream in list(self.video_analysis.keys()):
             self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".completer.txt",min_successful_attempts = 2,logger = self.logger, t_pool = self.thread_pool, minutes_wait = 0.5)
             try:

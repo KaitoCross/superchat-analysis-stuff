@@ -288,6 +288,9 @@ class SuperchatArchiver:
             return
         had_scs = db_retries_had_scs if db_retries_had_scs else 0
         self.msg_counter = 0
+        if had_scs >= self.min_successful_attempts:
+            await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
+                    "title"] + " already fully analyzed according to database, skipping")
         islive = True
         while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive):
             self.msg_counter = 0
