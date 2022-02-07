@@ -91,21 +91,6 @@
     <property name="currentIndex">
      <number>0</number>
     </property>
-    <widget class="QWidget" name="sc_tab">
-     <attribute name="title">
-      <string>Superchat timing</string>
-     </attribute>
-     <widget class="MplWidget" name="sc_timing_w" native="true">
-      <property name="geometry">
-       <rect>
-        <x>10</x>
-        <y>10</y>
-        <width>1271</width>
-        <height>801</height>
-       </rect>
-      </property>
-     </widget>
-    </widget>
     <widget class="QWidget" name="donor_currency_time_tab">
      <attribute name="title">
       <string>Donors per currency timing</string>
@@ -141,6 +126,36 @@
       <string>Donors per area per streamhour</string>
      </attribute>
      <widget class="MplWidget" name="area_strhour_sc_wid" native="true">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="donor_distrib">
+     <attribute name="title">
+      <string>Donor distribution by hour</string>
+     </attribute>
+     <widget class="MplWidget" name="don_dist_wid" native="true">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="sc_tab">
+     <attribute name="title">
+      <string>Superchat timing</string>
+     </attribute>
+     <widget class="MplWidget" name="sc_timing_w" native="true">
       <property name="geometry">
        <rect>
         <x>10</x>
