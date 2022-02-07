@@ -66,6 +66,8 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.plot_area_donor_timing(area_sums)
         self.plot_bar_area_donor_timing(self.don_dist_wid,area_sums)
         self.plot_area_donor_per_streamhour(area_sums,heatmap_data)
+        tz_friend = self.timezone_friendliness(streamer_heatmap)
+        self.fill_tz_friend_tbl(tz_friend)
         return
     
     
@@ -262,6 +264,24 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.area_strhour_sc_wid.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=4)
         self.area_strhour_sc_wid.canvas.draw()
         return
+    
+    def fill_tz_friend_tbl(self, data):
+        row_list = []
+        for streamer, tzfriend in data.items():
+            for tz, friend in tzfriend.items():
+                row_list.append([streamer,tz,friend])
+        table = self.tz_friend_table
+        table.setRowCount(0)
+        table.setColumnCount(3)
+        table.setRowCount(len(row_list))
+        table.setHorizontalHeaderLabels(["Streamer", "Timezone", "Friendliness"])
+        for y in range(len(row_list)):
+            table.setItem(y, 0, QTableWidgetItem(row_list[y][0]))
+            table.setItem(y, 1, QTableWidgetItem(row_list[y][1]))
+            table.setItem(y, 2, QTableWidgetItem("{:.2%}".format(row_list[y][2])))
+        table.resizeColumnsToContents()
+        table.resizeRowsToContents()
+
     
     def populate_widgets(self):
         self.db = QSqlDatabase.addDatabase('QPSQL')
@@ -543,7 +563,50 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                                
         self.db.close()
         return time_dict, coord_dict, area_sums
-        
+    
+    def timezone_friendliness(self,streamer_heatmap):
+        friend_time = self.generate_friendliness_mtx()
+        friendlyindex = {}
+        for streamer, heatmap in streamer_heatmap.items():
+            shaved_map = np.delete(heatmap,[7,8,9],0)
+            streamedhrs = shaved_map.sum()
+            timezone_friend = {}
+            for tz, idealtime in friend_time.items():
+                friendlyhrs = np.multiply(shaved_map,idealtime).sum()
+                friendlyperc = friendlyhrs / streamedhrs
+                timezone_friend[tz] = friendlyperc
+            friendlyindex[streamer] = timezone_friend
+        print(friendlyindex)
+        return friendlyindex
+    
+    def generate_friendliness_mtx(self):
+        timezones = [pytz.timezone("Asia/Tokyo"),pytz.timezone("Asia/Jakarta"),pytz.timezone("Europe/Moscow"),pytz.timezone("Europe/Berlin"),pytz.timezone("US/Eastern"),pytz.timezone("US/Pacific")]
+        friendly_timeframes = {}
+        for zone in timezones:
+            watch_start = [zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=14)),zone.localize(datetime(2000,1,1,hour=14))]
+            watch_end = [zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=2)),zone.localize(datetime(2000,1,2,hour=2)),zone.localize(datetime(2000,1,2,hour=0))]
+            timeframe = np.zeros((7,24))
+            days_p = 0
+            for start, end in zip(watch_start, watch_end):
+                dur = end-start
+                start_utc = start.astimezone(pytz.utc)
+                testtime = start_utc
+                endtime = end.astimezone(pytz.utc)
+                while testtime <= endtime:
+                    to_add = 0.0
+                    if endtime - testtime < timedelta(hours=1):
+                        if endtime - testtime <= timedelta(minutes=5):
+                            to_add = 0
+                        else:
+                            to_add = (endtime - testtime)/timedelta(hours=1)
+                    else:
+                        to_add = 1.0
+                    timeframe[(testtime.day-1+days_p)%7][testtime.time().hour] += to_add
+                    testtime = testtime + timedelta(hours=1)
+                days_p += 1
+            friendly_timeframes[watch_start[0].tzname()] = timeframe
+        #print(friendly_timeframes)
+        return friendly_timeframes
         
 class MySqlModel(QSqlQueryModel):
     def data(self, index, role):

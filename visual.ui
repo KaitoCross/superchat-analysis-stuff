@@ -89,7 +89,7 @@
      </sizepolicy>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>7</number>
     </property>
     <widget class="QWidget" name="donor_currency_time_tab">
      <attribute name="title">
@@ -191,6 +191,21 @@
         <x>10</x>
         <y>10</y>
         <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tz_friend_tab">
+     <attribute name="title">
+      <string>timezone friendliness</string>
+     </attribute>
+     <widget class="QTableWidget" name="tz_friend_table">
+      <property name="geometry">
+       <rect>
+        <x>800</x>
+        <y>10</y>
+        <width>471</width>
         <height>801</height>
        </rect>
       </property>

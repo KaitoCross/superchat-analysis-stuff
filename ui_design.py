@@ -83,6 +83,14 @@ class Ui_MainWindow(object):
         self.heatmap_widget.setGeometry(QtCore.QRect(10, 10, 1271, 801))
         self.heatmap_widget.setObjectName("heatmap_widget")
         self.statstabs.addTab(self.heatmap_tab, "")
+        self.tz_friend_tab = QtWidgets.QWidget()
+        self.tz_friend_tab.setObjectName("tz_friend_tab")
+        self.tz_friend_table = QtWidgets.QTableWidget(self.tz_friend_tab)
+        self.tz_friend_table.setGeometry(QtCore.QRect(800, 10, 471, 801))
+        self.tz_friend_table.setObjectName("tz_friend_table")
+        self.tz_friend_table.setColumnCount(0)
+        self.tz_friend_table.setRowCount(0)
+        self.statstabs.addTab(self.tz_friend_tab, "")
         self.superchatreading_tab = QtWidgets.QWidget()
         self.superchatreading_tab.setObjectName("superchatreading_tab")
         self.superchat_view = QtWidgets.QTableView(self.superchatreading_tab)
@@ -119,7 +127,7 @@ class Ui_MainWindow(object):
         MainWindow.setStatusBar(self.statusbar)
 
         self.retranslateUi(MainWindow)
-        self.statstabs.setCurrentIndex(0)
+        self.statstabs.setCurrentIndex(7)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
@@ -133,6 +141,7 @@ class Ui_MainWindow(object):
         self.statstabs.setTabText(self.statstabs.indexOf(self.sc_tab), _translate("MainWindow", "Superchat timing"))
         self.statstabs.setTabText(self.statstabs.indexOf(self.timetable_tab), _translate("MainWindow", "streaming schedule"))
         self.statstabs.setTabText(self.statstabs.indexOf(self.heatmap_tab), _translate("MainWindow", "stream schedule heat map"))
+        self.statstabs.setTabText(self.statstabs.indexOf(self.tz_friend_tab), _translate("MainWindow", "timezone friendliness"))
         self.getSCbutton.setText(_translate("MainWindow", "Get superchats"))
         self.getStreamListButton.setText(_translate("MainWindow", "get stream list"))
         self.statstabs.setTabText(self.statstabs.indexOf(self.superchatreading_tab), _translate("MainWindow", "superchat reading"))
