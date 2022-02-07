@@ -11,6 +11,7 @@ import matplotlib.ticker as plticker
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.colors
+import matplotlib.patheffects as path_effects
 import seaborn as sns
 # using code from https://stackoverflow.com/questions/43947318/plotting-matplotlib-figure-inside-qwidget-using-qt-designer-form-and-pyqt5
 
@@ -44,7 +45,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         endTime.setOffsetFromUtc(0)
         id_list = self.get_checked_chans()
         namelist = self.get_checked_chans(False)
-        print(namelist)
+        #print(namelist)
         namelist.sort()
         self.color_dict = self.getcolors(id_list)
         self.color_dict["Europe"] = (0.0,0.0,1.0)
@@ -205,7 +206,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         donorsum = np.zeros(24)
         for areano in range(0,len(areas)):
             donorsum = np.add(donorsum,area_sums[areas[areano]])
-        print("donorsum",donorsum)
+        #print("donorsum",donorsum)
         areapercents = {}
         areacum = {}
         area_sum = np.asarray(area_sums[areas[0]])
@@ -221,20 +222,22 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             for n in range(0,areano):
                 bottomsum = np.add(bottomsum,area_sums[areas[n]])
             bottomper = np.divide(bottomsum, donorsum,out=np.zeros_like(bottomsum), where=donorsum!=0)
-            print(bottomper)
+            #print(bottomper)
             areacum[areas[areano]] = np.add(percentages,bottomper)
             chartlist.append(widget.canvas.ax.bar(idx, percentages, width, label=areas[areano], color = self.choose_color(areas[areano]), bottom = bottomper))
-        print(areapercents,areacum)
+        #print(areapercents,areacum)
         for n in idx:
             for area in areas:
                 proportion, y_loc, count = (areapercents[area][n], areacum[area][n], area_sums[area][n])
                 if count > 0 and proportion > 0.02:
-                    widget.canvas.ax.text(x=n - 0.25,
+                    txt = widget.canvas.ax.text(x=n - 0.25,
                          y=(y_loc - proportion) + (proportion / 2),
-                         s=f'{count}\n({np.round(proportion * 100, 1)}%)', 
-                         color="black",
+                         s=f'{count}\n({int(np.round(proportion * 100, 0))}%)', 
+                         color="white",
                          fontsize=10,
                          fontweight="bold")
+                    txt.set_path_effects([path_effects.Stroke(linewidth=3, foreground='black'),
+                       path_effects.Normal()])
         widget.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3)
         widget.canvas.ax.yaxis.set_major_formatter(plticker.PercentFormatter(1.0)) 
         widget.canvas.draw()
