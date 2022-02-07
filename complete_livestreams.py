@@ -51,6 +51,7 @@ class redo_recorder:
         query = "select video_id from video where retries_of_rerecording_had_scs = 2 and caught_while <> 'none' and scheduledstarttime < $1 and channel_id = $2 order by scheduledstarttime desc"
         old_streams = await self.conn.fetch(query,datetime.now(timezone.utc) - timedelta(hours = 12),self.chan_id)
         recorded_set = set([rec["video_id"] for rec in old_streams])
+        await self.conn.close()
         channel_meta = self.yapi.get_channel_metadata(channel_id=self.chan_id,parser=None,list=["contentDetails"])
         self.api_points_used += 1
         upload_playlist = channel_meta["contentDetails"]["relatedPlaylists"]["uploads"]
