@@ -262,13 +262,6 @@ class SuperchatArchiver:
         if not self.videoinfo:
             await self.conn.close()
             return
-        self.insert_channels = await self.conn.prepare("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) "
-                                                       "ON CONFLICT DO NOTHING")
-        self.channel_name_history = await self.conn.prepare("INSERT INTO chan_names(id, name, time_discovered, time_used) "
-                                                            "VALUES ($1,$2,$3,$4) ON CONFLICT (id,name) DO UPDATE SET time_used = $4")
-        self.insert_messages = await self.conn.prepare("INSERT INTO messages(video_id, chat_id, user_id, message_txt, "
-                                                       "time_sent, currency, value, color) "
-                                                       "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING")
         async with self.conn.transaction():
             if self.channel_id and self.videoinfo["channel"]:
                 await self.conn.execute("INSERT INTO channel VALUES($1,$2,$3) ON CONFLICT (id) DO UPDATE SET tracked = $3",
@@ -292,11 +285,20 @@ class SuperchatArchiver:
             await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
                     "title"] + " already fully analyzed according to database, skipping")
         islive = True
+        await self.conn.close()
         while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive):
             self.msg_counter = 0
             self.chat_err = True
             if self.metadata:
                 islive = self.metadata["live"] in ["upcoming","live"]
+            self.conn = await asyncpg.connect(user = pgsql_creds["username"], password = pgsql_creds["password"], host = pgsql_creds["host"], database = pgsql_creds["database"])
+            self.insert_channels = await self.conn.prepare("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) "
+                                                       "ON CONFLICT DO NOTHING")
+            self.channel_name_history = await self.conn.prepare("INSERT INTO chan_names(id, name, time_discovered, time_used) "
+                                                             "VALUES ($1,$2,$3,$4) ON CONFLICT (id,name) DO UPDATE SET time_used = $4")
+            self.insert_messages = await self.conn.prepare("INSERT INTO messages(video_id, chat_id, user_id, message_txt, "
+                                                          "time_sent, currency, value, color) "
+                                                          "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING")
             while self.chat_err and not self.cancelled:
                 if "liveStreamingDetails" in self.videoinfo.keys() or self.videoinfo["live"] != "none" or repeats >= 1:
                     self.stats.clear()
@@ -309,12 +311,13 @@ class SuperchatArchiver:
                             "VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
                             self.videoid, self.videoinfo["channelId"], self.videoinfo["title"], self.started_at, publishtime)
                     await self.update_psql_metadata()
-                    await self.log_output("Started Analysis #"+str(repeats+1)+" at: "+self.started_at.isoformat())
+                    await self.log_output("Starting Analysis #"+str(repeats+1)+" at: "+self.started_at.isoformat())
                     await self.log_output("of video " + publishtime.isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
                     self.httpclient = httpx.AsyncClient(http2=True)
                     self.running_chat = LiveChatAsync(self.videoid, callback = self.display, processor = (SuperChatLogProcessor(), SuperchatCalculator()),logger=self.logger, client = self.httpclient, exception_handler = self.exception_handling)
+                    await self.log_output("starting...")
                     while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
                     if type(self.running_chat.exception) is exceptions.InvalidVideoIdException or type(self.running_chat.exception) is exceptions.ChatParseException:
@@ -367,6 +370,7 @@ class SuperchatArchiver:
                     return
             repeats += 1
             await self.log_output((repeats,self.cancelled,had_scs,self.videoinfo["live"]))
+            await self.conn.close()
             if repeats >= 1 and not self.cancelled and had_scs < 2 and islive:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
@@ -398,7 +402,6 @@ class SuperchatArchiver:
         f_donors = open(self.donor_file,"w")
         f_donors.write(json.dumps(self.donors))
         f_donors.close()
-        await self.conn.close()
         if self.cancelled:
             os.rename(f.name, f.name+".cancelled")
             os.rename(f_stats.name, f_stats.name + ".cancelled")
