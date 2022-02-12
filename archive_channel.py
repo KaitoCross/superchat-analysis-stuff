@@ -23,17 +23,17 @@ class channel_monitor:
         self.chan_ids = chan_list
         self.running_streams = []
         self.analyzed_streams = []
-        self.api_points = 10000.0 #available API points
-        self.desired_leftover_points = 100.0 #for safety measure since the SuperchatArchiver objects will use some API points
+        self.api_points = 300.0 #available API points
+        self.desired_leftover_points = 10.0 #for safety measure since the SuperchatArchiver objects will use some API points
         self.max_watched_channels = len(self.chan_ids)
-        self.cost_per_request = 100.0
+        self.cost_per_request = 2.0
         #calculate how many times I can monitor all of the channels together using the Youtube search API (costs MANY API points)
         self.requests_left = math.floor((self.api_points-self.api_points_used) / (self.max_watched_channels*self.cost_per_request))
         #Calculate how long I have to wait for the next search request - trying not to exceed the 24h API usage limits
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
-        fh = logging.FileHandler(keyfilepath+"_monitor.debuglog")
+        fh = logging.FileHandler(keyfilepath+"_archiver.debuglog")
         fh.setLevel(logging.DEBUG)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -43,97 +43,66 @@ class channel_monitor:
         ch.setFormatter(formatter)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
-        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=300)
+        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)
         self.loop = loop
-        
+        self.videolist = {}
+        self.yapi = YouTubeDataAPI(self.yt_api_key)
 
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
+        resume_at = datetime.now(tz=pytz.timezone('America/Los_Angeles'))
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
         self.sleep_dur = temp.total_seconds() / self.requests_left
+        cutoff_date = datetime(2020, 6, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
+        await self.log_output("Collecting videos..")
+        for id in self.chan_ids:
+            await self.log_output(id)
+            channel_meta = self.yapi.get_channel_metadata(channel_id=id,parser=None,list=["contentDetails"])
+            self.api_points_used += 1
+            upload_playlist = channel_meta["contentDetails"]["relatedPlaylists"]["uploads"]
+            uploaded_videos = self.yapi.get_videos_from_playlist_id(upload_playlist,parser=None,list=["contentDetails"])
+            uploaded_videos_sort = sorted(uploaded_videos,key = lambda d: d["snippet"]["publishedAt"])
+            #await self.log_output(uploaded_videos_sort)
+            self.api_points_used += 1
+            for videos in uploaded_videos_sort:
+                publishedDate = datetime.strptime(videos["snippet"]["publishedAt"]+ " +0000", "%Y-%m-%dT%H:%M:%SZ %z")
+                if publishedDate < cutoff_date:
+                    continue
+                self.videolist[videos["snippet"]["resourceId"]["videoId"]] = {"channel": videos["snippet"]["videoOwnerChannelTitle"],
+                "channelId": videos["snippet"]["videoOwnerChannelId"],
+                "title": videos["snippet"]["title"],
+                "id": videos["snippet"]["resourceId"]["videoId"]}
+        await self.log_output(self.videolist)
         while self.running:
-            self.running_streams.clear()
-            try:
-                for chan_id in self.chan_ids:
-                    #catch only planned streams. Caution! API returns recently finished streams as "upcoming" too!
-                    try:
-                        planstreams_search = await requests.get(
-                            'https://youtube.googleapis.com/youtube/v3/search?part=id&channelId=' + chan_id + '&eventType=upcoming&type=video&key=' + self.yt_api_key)
-                        planstreams_raw_json = await planstreams_search.json()
-                    except Exception as e:
-                        self.log_output(e,40)
-                        self.log_output(traceback.format_exc(),40)
-                        continue
-                    if "error" in planstreams_raw_json.keys():
-                        if planstreams_raw_json['error']['code'] == 403:
-                            raise ValueError("API Quota exceeded!")
-                    self.api_points_used += self.cost_per_request
-                    if 'items' in planstreams_raw_json.keys():
-                        for streams in planstreams_raw_json['items']:
-                            self.video_analysis.setdefault(streams['id']['videoId'],None)
-                            self.running_streams.append(streams['id']['videoId'])
-            except ValueError:
-                self.api_points_used = 10000.0
-                await self.log_output("API Quota exceeded!",30)
-            await self.log_output(self.video_analysis)
-            current_time = datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()
-            await self.log_output(list(self.video_analysis.keys()))#, planned_streams)
-            if self.api_points_used < self.api_points:
-                for stream in list(self.video_analysis.keys()):
-                    if self.video_analysis[stream] is None and stream not in self.analyzed_streams: #because YouTube lists past streams as "upcoming" for a while after stream ends
-                        try:
-                            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".sc-monitor.txt",logger = self.logger, t_pool = self.t_pool)
-                            asyncio.ensure_future(self.video_analysis[stream].main())
-                            self.analyzed_streams.append(stream)
-                        except ValueError: #for some godforsaken reason, the YouTubeDataApi object throws a ValueError
-                            #with a wrong error msg (claiming your API key is "incorrect")
-                            #if you exceed your API quota. That's why we do the same in the code above.
-                            self.api_points_used = 10000.0
-                            await self.log_output("API Quota exceeded!",30)
-                    else:
-                        if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
-                            self.api_points_used += self.video_analysis[stream].api_points_used
-                            self.video_analysis.pop(stream)
             total_points_used = await self.total_api_points_used()
             #If we somehow used too many API points, calculate waiting time between now an midnight pacific time
-            if total_points_used >= (self.api_points-self.desired_leftover_points):
+            await self.log_output("collecting superchats")
+            for stream in self.videolist.keys():
+                await self.wait_for_points()
+                await self.log_output(stream)
+                self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".retrospective-archive.txt",logger = self.logger)
+                await self.video_analysis[stream].main()
+                self.analyzed_streams.append(stream)
+            self.running = False
+
+                
+    async def wait_for_points(self):
+        total_points_used = await self.total_api_points_used()
+        if total_points_used >= (self.api_points-self.desired_leftover_points):
+                await self.log_output("point limit reached")
                 time_now = datetime.now(tz=pytz.timezone('America/Los_Angeles'))
                 await self.log_output(time_now.isoformat())
                 resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
                 t_delta = resume_at-time_now
                 self.sleep_dur = t_delta.total_seconds()
-                self.requests_left = 0
-                self.reset_used = True
-            else:
-                # Calculate how long I have to wait for the next search request
-                # trying not to exceed the 24h API usage limits while also accounting for time already passed since last
-                # API point reset (which happens at midnight pacific time)
-                self.requests_left = math.floor((self.api_points - self.api_points_used) / (self.max_watched_channels * self.cost_per_request))
-                if self.requests_left > 0:
-                    temp = await self.time_until_specified_hour(0,pytz.timezone('America/Los_Angeles'))
-                    self.sleep_dur = temp.total_seconds()/self.requests_left
-                    resume_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))+timedelta(seconds=self.sleep_dur)
-                else:
-                    time_now = datetime.now(tz=pytz.timezone('America/Los_Angeles'))
-                    resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
-                    t_delta = resume_at-time_now
-                    self.sleep_dur = t_delta.total_seconds()
-            await self.log_output('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
-            await self.log_output('approx. '+str(self.api_points-self.api_points_used)+' points left')
-            await self.log_output((self.requests_left, "requests left"))
-            awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
-            await self.log_output('next run at: ' + awake_at.isoformat() + " Berlin Time")
-            await asyncio.sleep(self.sleep_dur)
-            #When midnight passes, do this API point reset
-            if self.reset_used:
-                self.api_points_used = 0
-                self.requests_left = math.floor(
-                    (self.api_points - self.api_points_used) / (self.max_watched_channels * self.cost_per_request))
-                await self.log_output('used points reset at ' + datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat() + " Berlin time")
-                self.reset_used = False
-
+                await self.log_output('sleeping for ' + str(self.sleep_dur/60) + ' minutes')
+                await self.log_output('approx. '+str(self.api_points-self.api_points_used)+' points left')
+                awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
+                await self.log_output('next run at: ' + awake_at.isoformat() + " Berlin Time")
+                await asyncio.sleep(self.sleep_dur)
+                
     async def next_specified_hour_datetime(self,w_hour,tzinfo_p):
         time_now = datetime.now(tz=tzinfo_p)
         if time_now.hour >= w_hour:

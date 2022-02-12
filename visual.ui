@@ -89,23 +89,8 @@
      </sizepolicy>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>7</number>
     </property>
-    <widget class="QWidget" name="sc_tab">
-     <attribute name="title">
-      <string>Superchat timing</string>
-     </attribute>
-     <widget class="MplWidget" name="plotWidget" native="true">
-      <property name="geometry">
-       <rect>
-        <x>10</x>
-        <y>10</y>
-        <width>1271</width>
-        <height>801</height>
-       </rect>
-      </property>
-     </widget>
-    </widget>
     <widget class="QWidget" name="donor_currency_time_tab">
      <attribute name="title">
       <string>Donors per currency timing</string>
@@ -136,11 +121,56 @@
       </property>
      </widget>
     </widget>
+    <widget class="QWidget" name="area_sc_per_shour">
+     <attribute name="title">
+      <string>Donors per area per streamhour</string>
+     </attribute>
+     <widget class="MplWidget" name="area_strhour_sc_wid" native="true">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="donor_distrib">
+     <attribute name="title">
+      <string>Donor distribution by hour</string>
+     </attribute>
+     <widget class="MplWidget" name="don_dist_wid" native="true">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="sc_tab">
+     <attribute name="title">
+      <string>Superchat timing</string>
+     </attribute>
+     <widget class="MplWidget" name="sc_timing_w" native="true">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
     <widget class="QWidget" name="timetable_tab">
      <attribute name="title">
       <string>streaming schedule</string>
      </attribute>
-     <widget class="MplWidget" name="plotWidget_2" native="true">
+     <widget class="MplWidget" name="timetable_wid" native="true">
       <property name="geometry">
        <rect>
         <x>10</x>
@@ -161,6 +191,21 @@
         <x>10</x>
         <y>10</y>
         <width>1271</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tz_friend_tab">
+     <attribute name="title">
+      <string>timezone friendliness</string>
+     </attribute>
+     <widget class="QTableWidget" name="tz_friend_table">
+      <property name="geometry">
+       <rect>
+        <x>800</x>
+        <y>10</y>
+        <width>471</width>
         <height>801</height>
        </rect>
       </property>

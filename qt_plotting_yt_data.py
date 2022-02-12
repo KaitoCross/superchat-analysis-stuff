@@ -11,6 +11,7 @@ import matplotlib.ticker as plticker
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.colors
+import matplotlib.patheffects as path_effects
 import seaborn as sns
 # using code from https://stackoverflow.com/questions/43947318/plotting-matplotlib-figure-inside-qwidget-using-qt-designer-form-and-pyqt5
 
@@ -25,11 +26,12 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.getSCbutton.clicked.connect(self.get_superchats)
         self.startDateTimeEditor.setDisplayFormat("dd.MM.yyyy hh:mm")
         self.endDateTimeEditor.setDisplayFormat("dd.MM.yyyy hh:mm")
-        self.curr = {"Africa": ["ZAR","EGP"],
-                "Asia": ["AED","HKD","INR","JOD","JPY","KRW","MYR","PHP","QAR","SAR","SGD","TWD"],
-                "Europe": ["BAM","BGN","BYN","CHF","CZK","DKK","EUR","GBP","HRK","HUF","ILS","ISK","NOK","PLN","RON","RSD","RUB","SEK","TRY"],
+        self.curr = {
                 "North America": ["USD","CAD","MXN"],
                 "South America": ["ARS","BOB","BRL","CLP","COP","CRC","DOP","GTQ","HNL","NIO","PEN","PYG","UYU"],
+                "Europe": ["BAM","BGN","BYN","CHF","CZK","DKK","EUR","GBP","HRK","HUF","ILS","ISK","NOK","PLN","RON","RSD","RUB","SEK","TRY"],
+                "Africa": ["ZAR","EGP"],
+                "Asia": ["AED","HKD","INR","JOD","JPY","KRW","MYR","PHP","QAR","SAR","SGD","TWD"],
                 "Oceania": ["AUD","NZD"]}
         self.pgsql_config_file = open("postgres-config-qt.json")
         self.pgsql_creds = json.load(self.pgsql_config_file)
@@ -37,116 +39,250 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.populate_widgets()
 
     def plot_data(self):
-        self.plotWidget.canvas.ax.clear()
         startTime = self.startDateTimeEditor.dateTime()
         endTime = self.endDateTimeEditor.dateTime()
         startTime.setOffsetFromUtc(0)
         endTime.setOffsetFromUtc(0)
-        self.plotWidget.canvas.ax.set_xlim(startTime.toPyDateTime().date(),endTime.toPyDateTime().date())
-        datetime_list, date_list, time_list, donation_list = self.get_time_series_data(startTime,endTime)
-        self.plotWidget.canvas.ax.scatter(date_list, time_list)
-        yFmt = mdates.DateFormatter('%H:%M')
-        xFmt = mdates.DateFormatter('%d.%m.%y')
-        self.plotWidget.canvas.ax.xaxis.set_major_formatter(xFmt)
-        self.plotWidget.canvas.ax.yaxis.set_major_formatter(yFmt)
-        self.plotWidget.canvas.ax.set_title("Superchat time")
-        self.plotWidget.canvas.ax.set_ylabel("Time of day")
-        self.plotWidget.canvas.ax.set_xlabel("Date")
-        self.plotWidget.canvas.draw()
-        self.plotWidget_2.canvas.ax.clear()
-        self.plotWidget_2.canvas.ax.set_xlim(startTime.toPyDateTime(),endTime.toPyDateTime())
-        self.plotWidget_2.canvas.ax.set_ylim(0.0,24.0)
-        self.plotWidget_2.canvas.ax.xaxis.set_major_formatter(xFmt)
-        self.plotWidget_2.canvas.ax.set_title("Streaming times")
-        self.plotWidget_2.canvas.ax.set_ylabel("Time of day")
-        self.plotWidget_2.canvas.ax.set_xlabel("Date")
-        heatmap_data = np.zeros((7,24))
-        loc = plticker.MultipleLocator(base=2.0) # this locator puts ticks at regular intervals
-        checked_chans = []
-        for index in range(self.channelListWidget.count()):
-            if self.channelListWidget.item(index).checkState() == Qt.Checked:
-                checked_chans.append(self.channelListWidget.item(index))
-        namelist = [x.text() for x in checked_chans]
+        id_list = self.get_checked_chans()
+        namelist = self.get_checked_chans(False)
+        #print(namelist)
         namelist.sort()
-        patches=[]
-        self.color_dict = self.getcolors(namelist)
+        self.color_dict = self.getcolors(id_list)
         self.color_dict["Europe"] = (0.0,0.0,1.0)
         self.color_dict["North America"] = (1.0,0.0,0.0)
         self.color_dict["Asia"] = (0.0,1.0,0.0)
         self.color_dict["Oceania"] = (0.0,0.0,0.0)
         self.color_dict["Africa"] = (1.0,1.0,0.0)
         self.color_dict["South America"] = (1.0,165/255.0,0.0)
-        namecount = 0
+        self.plot_superchat_timing(startTime,endTime)
+        stream_dict = {}
         for name in namelist:
-            stream_list = []
-            stream_list = stream_list + self.get_past_schedule(startTime,endTime,name)
-            stream_list_new = []
+            stream_dict[name] = (self.get_stream_sched(startTime,endTime,name))
+        heatmap_data, heatmap_sums, streamer_heatmap = self.get_heatmap_data(stream_dict)
+        time_dict, coord_dict, area_sums = self.get_supa_time(startTime,endTime)
+        self.plot_timetable(stream_dict,startTime,endTime)
+        self.plot_heatmap(heatmap_data, self.heatmap_widget)
+        self.plot_donor_timing(coord_dict,area_sums)
+        self.plot_area_donor_timing(area_sums)
+        self.plot_bar_area_donor_timing(self.don_dist_wid,area_sums)
+        self.plot_area_donor_per_streamhour(area_sums,heatmap_data)
+        tz_friend = self.timezone_friendliness(streamer_heatmap)
+        self.fill_tz_friend_tbl(tz_friend)
+        return
+    
+    
+    def plot_superchat_timing(self,startTime,endTime):
+        datetime_list, date_list, time_list, donation_list = self.get_time_series_data(startTime,endTime)
+        self.sc_timing_w.canvas.ax.clear()
+        self.sc_timing_w.canvas.ax.set_xlim(startTime.toPyDateTime().date(),endTime.toPyDateTime().date())
+        self.sc_timing_w.canvas.ax.scatter(date_list, time_list)
+        yFmt = mdates.DateFormatter('%H:%M')
+        xFmt = mdates.DateFormatter('%d.%m.%y')
+        self.sc_timing_w.canvas.ax.xaxis.set_major_formatter(xFmt)
+        self.sc_timing_w.canvas.ax.yaxis.set_major_formatter(yFmt)
+        self.sc_timing_w.canvas.ax.set_title("Superchat time")
+        self.sc_timing_w.canvas.ax.set_ylabel("Time of day")
+        self.sc_timing_w.canvas.ax.set_xlabel("Date")
+        self.sc_timing_w.canvas.draw()
+        
+    def plot_timetable(self,stream_dict,startTime,endTime):
+        self.timetable_wid.canvas.ax.clear()
+        self.timetable_wid.canvas.ax.set_xlim(startTime.toPyDateTime(),endTime.toPyDateTime())
+        self.timetable_wid.canvas.ax.set_ylim(0.0,24.0)
+        xFmt = mdates.DateFormatter('%d.%m.%y')
+        self.timetable_wid.canvas.ax.xaxis.set_major_formatter(xFmt)
+        self.timetable_wid.canvas.ax.set_title("Streaming times")
+        self.timetable_wid.canvas.ax.set_ylabel("Time of day")
+        self.timetable_wid.canvas.ax.set_xlabel("Date")
+        loc = plticker.MultipleLocator(base=2.0) # this locator puts ticks at regular intervals
+        patches=[]
+        namecount = 0
+        for name in stream_dict.keys():
             col = self.choose_color(name)
-            #print(col)
             patches.append(mpatches.Patch(color=col, label = name))
-            for stream in stream_list:
-                stream_list_new = stream_list_new + self.check_midnight(stream[0],stream[1])
-            for stream in stream_list_new:
-                time_width = timedelta(days=1) / len(namelist)
+            for stream in stream_dict[name]:
+                time_width = timedelta(days=1) / len(stream_dict.keys())
                 stream_date = stream[0].replace(hour=0, minute=0, second=0, microsecond=0)
                 x_range = [(stream_date+time_width*namecount,time_width)]
                 y_range = (self.time2delta(stream[0].timetz()).seconds/60.0/60.0,stream[1].seconds/60.0/60.0)
-                self.plotWidget_2.canvas.ax.broken_barh(x_range,y_range, alpha = 0.5, color = col)
+                self.timetable_wid.canvas.ax.broken_barh(x_range,y_range, alpha = 0.5, color = col)
+            namecount += 1
+        days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+        self.timetable_wid.canvas.ax.yaxis.set_major_locator(loc)
+        self.timetable_wid.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3, handles=patches)
+        self.timetable_wid.canvas.draw()
+        
+    def plot_heatmap(self,heatmap_data, widget, ylabels = None):
+        days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']#,'Weekdays','Weekend']
+        ylabeling = ylabels if ylabels else days
+        widget.canvas.ax.clear()
+        widget.canvas.ax2.clear()
+        #self.heatmap_widget.canvas.fig.clear()
+        widget.canvas.ax.set_title("Stream times heatmap")
+        widget.canvas.ax.set_ylabel("Day of week")
+        widget.canvas.ax.set_xlabel("Time of day")
+        heatmap = plt.pcolor(heatmap_data)
+        widget.canvas.fig.colorbar(heatmap,widget.canvas.ax2)
+        widget.canvas.ax.imshow(heatmap_data)
+        widget.canvas.ax.set_yticks(np.arange(len(ylabeling)))
+        widget.canvas.ax.set_yticklabels(ylabeling)
+        widget.canvas.ax.set_xticks(np.arange(24))
+        for y in range(heatmap_data.shape[0]):
+            for x in range(heatmap_data.shape[1]):
+                text = widget.canvas.ax.text(x, y, "{:.2f}".format(heatmap_data[y, x]),ha="center", va="center", color="w")
+        widget.canvas.draw()
+        
+    def get_heatmap_data(self,stream_dict):
+        heatmap_data = np.zeros((7,24))
+        heatmap_sums = np.zeros((3,24))
+        streamer_heatmap = {}
+        for name in stream_dict.keys():
+            streamer_heatmap[name] = np.zeros((10,24))
+            for stream in stream_dict[name]:
                 stream_hour = stream[0].replace(minute=0, second=0, microsecond=0)
                 testtime = stream_hour
                 endtime = stream[0] + stream[1]
+                #print(stream,testtime,endtime)
                 while testtime <= endtime:
-                    heatmap_data[testtime.weekday()][testtime.time().hour] += 1
-                    #if testtime.weekday() >= 0 and testtime.weekday() <= 4:
-                    #    heatmap_data[7][testtime.time().hour] += 1
-                    #elif testtime.weekday() >= 5:
-                    #    heatmap_data[8][testtime.time().hour] += 1
+                    to_add = 0.0
+                    if endtime - testtime < timedelta(hours=1):
+                        if endtime - testtime <= timedelta(minutes=5):
+                            to_add = 0
+                        else:
+                            to_add = (endtime - testtime)/timedelta(hours=1)
+                    else:
+                        to_add = 1.0
+                    heatmap_data[testtime.weekday()][testtime.time().hour] += to_add
+                    streamer_heatmap[name][testtime.weekday()][testtime.time().hour] += to_add
+                    if testtime.weekday() >= 0 and testtime.weekday() <= 4:
+                        heatmap_sums[0][testtime.time().hour] += to_add
+                        streamer_heatmap[name][7][testtime.time().hour] += to_add
+                    elif testtime.weekday() >= 5:
+                        heatmap_sums[1][testtime.time().hour] += to_add
+                        streamer_heatmap[name][8][testtime.time().hour] += to_add
+                    heatmap_sums[2][testtime.time().hour] += to_add
+                    streamer_heatmap[name][9][testtime.time().hour] += to_add
                     testtime = testtime + timedelta(hours=1)
-            namecount += 1
-        #print(heatmap_data)
-        days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']#,'Weekdays','Weekend']
-        self.plotWidget_2.canvas.ax.yaxis.set_major_locator(loc)
-        self.plotWidget_2.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3, handles=patches)
-        self.plotWidget_2.canvas.draw()
-        self.heatmap_widget.canvas.ax.clear()
-        self.heatmap_widget.canvas.ax2.clear()
-        #self.heatmap_widget.canvas.fig.clear()
-        self.heatmap_widget.canvas.ax.set_title("Stream times heatmap")
-        self.heatmap_widget.canvas.ax.set_ylabel("Day of week")
-        self.heatmap_widget.canvas.ax.set_xlabel("Time of day")
-        self.heatmap_widget.canvas.ax.set_xticks(np.arange(24))
-        self.heatmap_widget.canvas.ax.set_yticks(np.arange(len(days)))
-        self.heatmap_widget.canvas.ax.set_yticklabels(days)
-        heatmap = plt.pcolor(heatmap_data)
-        self.heatmap_widget.canvas.fig.colorbar(heatmap,self.heatmap_widget.canvas.ax2)
-        self.heatmap_widget.canvas.ax.imshow(heatmap_data)
-        for y in range(heatmap_data.shape[0]):
-            for x in range(heatmap_data.shape[1]):
-                text = self.plotWidget_2.canvas.ax.text(x, y, heatmap_data[y, x],ha="center", va="center", color="w")
-        self.heatmap_widget.canvas.draw()
+        return heatmap_data, heatmap_sums, streamer_heatmap
+        
+    def plot_donor_timing(self, coord_dict, area_sums):
         #xFmt = mdates.DateFormatter('%H:%M')
+        loc = plticker.MultipleLocator(base=2.0)
         self.donortiming.canvas.ax.clear()
         self.donortiming.canvas.ax.set_title("Donors per currency at which time")
         self.donortiming.canvas.ax.xaxis.set_major_locator(loc)
         #self.donortiming.canvas.ax.xaxis.set_major_formatter(xFmt)
         self.donortiming.canvas.ax.set_ylabel("amount of unique superchatters")
         self.donortiming.canvas.ax.set_xlabel("Time of day")
-        time_dict, coord_dict, area_sums = self.get_supa_time(startTime,endTime)
         for currency in coord_dict:
-            self.donortiming.canvas.ax.plot(coord_dict[currency]["users"],label = currency, color = self.choose_color(currency))
+            self.donortiming.canvas.ax.plot(coord_dict[currency]["users"],label = currency, color = self.choose_color(currency), linewidth = 4)
         self.donortiming.canvas.ax.legend(loc="right")
         self.donortiming.canvas.draw()
+        return
+    
+    def plot_area_donor_timing(self,area_sums):
         self.area_sc_timing_draw.canvas.ax.clear()
+        loc = plticker.MultipleLocator(base=2.0)
         self.area_sc_timing_draw.canvas.ax.xaxis.set_major_locator(loc)
         self.area_sc_timing_draw.canvas.ax.set_title("Donors per region at which time")
         self.area_sc_timing_draw.canvas.ax.set_ylabel("amount of unique superchatters")
         self.area_sc_timing_draw.canvas.ax.set_xlabel("Time of day")
-        #print(area_sums)
         for area in area_sums.keys():
-            self.area_sc_timing_draw.canvas.ax.plot(area_sums[area], label = str(area), color = self.choose_color(area))
-        self.area_sc_timing_draw.canvas.ax.legend(loc="right")
+            self.area_sc_timing_draw.canvas.ax.plot(area_sums[area], label = str(area), color = self.choose_color(area), linewidth = 4)
+        self.area_sc_timing_draw.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3)
         self.area_sc_timing_draw.canvas.draw()
-        
+        return
+    
+    def plot_bar_area_donor_timing(self,widget,area_sums):
+        idx = np.arange(24)
+        width = 0.5
+        widget.canvas.ax.clear()
+        loc = plticker.MultipleLocator(base=1.0)
+        widget.canvas.ax.xaxis.set_major_locator(loc)
+        widget.canvas.ax.set_title("Donors per region at which time")
+        widget.canvas.ax.set_ylabel("percentage of unique superchatters")
+        widget.canvas.ax.set_xlabel("Time of day")
+        chartlist = []
+        areas = ["North America","South America","Europe","Africa","Asia","Oceania"]
+        areas.reverse()
+        donorsum = np.zeros(24)
+        for areano in range(0,len(areas)):
+            donorsum = np.add(donorsum,area_sums[areas[areano]])
+        #print("donorsum",donorsum)
+        areapercents = {}
+        areacum = {}
+        area_sum = np.asarray(area_sums[areas[0]])
+        percentages = np.divide(area_sum,donorsum, out=np.zeros_like(donorsum), where=donorsum!=0)
+        areapercents[areas[0]] = percentages
+        areacum[areas[0]] = np.add(percentages,[0 for i in range(0,24)])
+        chartlist.append(widget.canvas.ax.bar(idx, percentages, width, label=areas[0], color = self.choose_color(areas[0])))
+        for areano in range(1,len(areas)):
+            area_sum = np.asarray(area_sums[areas[areano]])
+            percentages = np.divide(area_sum,donorsum,out=np.zeros_like(donorsum), where=donorsum!=0)
+            areapercents[areas[areano]] = percentages
+            bottomsum = np.zeros(24)
+            for n in range(0,areano):
+                bottomsum = np.add(bottomsum,area_sums[areas[n]])
+            bottomper = np.divide(bottomsum, donorsum,out=np.zeros_like(bottomsum), where=donorsum!=0)
+            #print(bottomper)
+            areacum[areas[areano]] = np.add(percentages,bottomper)
+            chartlist.append(widget.canvas.ax.bar(idx, percentages, width, label=areas[areano], color = self.choose_color(areas[areano]), bottom = bottomper))
+        #print(areapercents,areacum)
+        for n in idx:
+            for area in areas:
+                proportion, y_loc, count = (areapercents[area][n], areacum[area][n], area_sums[area][n])
+                if count > 0 and proportion > 0.02:
+                    txt = widget.canvas.ax.text(x=n - 0.25,
+                         y=(y_loc - proportion) + (proportion / 2),
+                         s=f'{count}\n({int(np.round(proportion * 100, 0))}%)', 
+                         color="white",
+                         fontsize=10,
+                         fontweight="bold")
+                    txt.set_path_effects([path_effects.Stroke(linewidth=3, foreground='black'),
+                       path_effects.Normal()])
+        widget.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3)
+        widget.canvas.ax.yaxis.set_major_formatter(plticker.PercentFormatter(1.0)) 
+        widget.canvas.draw()
+        return
+    
+    def plot_area_donor_per_streamhour(self,area_sums,heatmap_data):
+        streamhours = np.zeros(24)
+        for day in heatmap_data:
+            streamhours = streamhours + day
+        #print("streamhours",streamhours)
+        self.area_strhour_sc_wid.canvas.ax.clear()
+        loc = plticker.MultipleLocator(base=2.0)
+        self.area_strhour_sc_wid.canvas.ax.xaxis.set_major_locator(loc)
+        self.area_strhour_sc_wid.canvas.ax.set_title("Donors per region at which time per running stream")
+        self.area_strhour_sc_wid.canvas.ax.set_ylabel("amount of average unique superchatters")
+        self.area_strhour_sc_wid.canvas.ax.set_xlabel("Time of day")
+        for area in area_sums.keys():
+            #print(area,area_sums[area])
+            area_avg = np.divide(np.asarray(area_sums[area]),streamhours,out=np.zeros_like(streamhours), where=streamhours!=0)
+            self.area_strhour_sc_wid.canvas.ax.plot(area_avg, label = str(area), color = self.choose_color(area), linewidth = 4)
+        self.area_strhour_sc_wid.canvas.ax.plot(streamhours, label = "Streamhours offered", color = self.choose_color("total"), linewidth = 4)
+        self.area_strhour_sc_wid.canvas.ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=4)
+        self.area_strhour_sc_wid.canvas.draw()
+        return
+    
+    def fill_tz_friend_tbl(self, data):
+        row_list = []
+        for streamer, tzfriend in data.items():
+            for tz, friend in tzfriend.items():
+                row_list.append([streamer,tz,friend])
+        table = self.tz_friend_table
+        table.setRowCount(0)
+        table.setColumnCount(3)
+        table.setRowCount(len(row_list))
+        table.setHorizontalHeaderLabels(["Streamer", "Timezone", "Friendliness"])
+        for y in range(len(row_list)):
+            table.setItem(y, 0, QTableWidgetItem(row_list[y][0]))
+            table.setItem(y, 1, QTableWidgetItem(row_list[y][1]))
+            table.setItem(y, 2, QTableWidgetItem("{:.2%}".format(row_list[y][2])))
+        table.resizeColumnsToContents()
+        table.resizeRowsToContents()
+
+    
     def populate_widgets(self):
         self.db = QSqlDatabase.addDatabase('QPSQL')
         self.db.setHostName(self.pgsql_creds["host"])
@@ -155,13 +291,17 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.db.setDatabaseName(self.pgsql_creds["database"])
         self.db.open()
         query = QSqlQuery()
-        query.exec_("select name from channel inner join video v on id = v.channel_id group by name order by name")
+        print("querying names")
+        query.exec_("select name, id from channel inner join video v on id = v.channel_id group by id order by name")
         while query.next():
             #print(query.value(0))
+            #print(query.value(1))
             entry = QListWidgetItem(query.value(0).strip())
+            entry.setData(32,query.value(1))
             entry.setCheckState(Qt.Unchecked)
             self.channelListWidget.addItem(entry)
-        query.exec_("select currency from messages group by currency order by currency")
+        print("querying currencies")
+        query.exec_("select currency from messages where currency <> 'MON' group by currency order by currency")
         while query.next():
             #print(query.value(0))
             entry = QListWidgetItem(query.value(0).strip())
@@ -204,7 +344,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         color_dict = {}
         names = self.namelist_string(namelist)
         query = QSqlQuery()
-        query.prepare("select color, id, name from channel where name in "+names+" and color is not null")
+        query.prepare("select color, id, name from channel where id in "+names+" and color is not null")
         query.exec_()
         while query.next():
             h = "#"+query.value(0)
@@ -212,6 +352,14 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             color_dict[query.value(2)] = db_color
         self.db.close()
         return color_dict
+    
+    def get_stream_sched(self,startTime,endTime,name):
+        stream_list = []
+        stream_list = stream_list + self.get_past_schedule(startTime,endTime,name)
+        stream_list_new = []
+        for stream in stream_list:
+                stream_list_new = stream_list_new + self.check_midnight(stream[0],stream[1])
+        return stream_list_new
     
     def get_past_schedule(self,startTime,endTime,chan_name="None"):
         #names = "("
@@ -235,7 +383,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             starttime = query.value(0)
             starttime = starttime.toPyDateTime() if starttime else 0
             duration = timedelta(seconds=query.value(1))
-            plannedstarttime = query.value(2).toPyDateTime()
+            plannedstarttime = query.value(2).toPyDateTime() if query.value(2) else None
             vid = query.value(5)
             endedLogAt = query.value(3)
             endedLogAt = endedLogAt.toPyDateTime() if endedLogAt else 0
@@ -274,7 +422,8 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         #print(namelist,currencylist)
         self.db.open()
         query = QSqlQuery()
-        query.prepare("SELECT time_sent AT TIME ZONE 'UTC', extract(hour from time_sent AT TIME ZONE 'UTC') as hour, extract(minute from time_sent AT TIME ZONE 'UTC') as minute, currency, value from messages inner join video v on v.video_id = messages.video_id inner join channel c on c.id = v.channel_id WHERE c.name IN "+names+" and currency in "+currencies+" and time_sent >= :start and time_sent < :end ORDER BY hour")
+        #query.prepare("SELECT time_sent AT TIME ZONE 'UTC', extract(hour from time_sent AT TIME ZONE 'UTC') as hour, extract(minute from time_sent AT TIME ZONE 'UTC') as minute, currency, value from messages inner join video v on v.video_id = messages.video_id inner join channel c on c.id = v.channel_id WHERE c.name IN "+names+" and currency in "+currencies+" and time_sent >= :start and time_sent < :end ORDER BY hour")
+        query.prepare("SELECT time_sent AT TIME ZONE 'UTC', extract(hour from time_sent AT TIME ZONE 'UTC') as hour, extract(minute from time_sent AT TIME ZONE 'UTC') as minute, currency, value from messages inner join video v on v.video_id = messages.video_id WHERE v.channel_id IN "+names+" and currency in "+currencies+" and time_sent >= :start and time_sent < :end ORDER BY hour")
         query.bindValue(":start",startTime)
         query.bindValue(":end",endTime)
         query.exec_()
@@ -303,7 +452,8 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         names = self.namelist_string(namelist)
         self.db.open()
         query = QSqlQuery()
-        test = query.prepare("SELECT video_id, title, scheduledStartTime AT TIME ZONE 'UTC' from video inner join channel c on c.id = video.channel_id WHERE c.name IN "+names+" and scheduledStartTime >= :start and scheduledStartTime < :end ORDER BY scheduledStartTime")
+        #test = query.prepare("SELECT video_id, title, scheduledStartTime AT TIME ZONE 'UTC' from video inner join channel c on c.id = video.channel_id WHERE c.name IN "+names+" and scheduledStartTime >= :start and scheduledStartTime < :end ORDER BY scheduledStartTime")
+        test = query.prepare("SELECT video_id, title, scheduledStartTime AT TIME ZONE 'UTC' from video WHERE video.channel_id IN "+names+" and scheduledStartTime >= :start and scheduledStartTime < :end ORDER BY scheduledStartTime")
         query.bindValue(":start",startTime)
         query.bindValue(":end",endTime)
         query.exec_()
@@ -366,27 +516,31 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             
         return list(currencyset)
     
-    def get_checked_chans(self):
+    def get_checked_chans(self, id = True):
         checked_chans = []
         for index in range(self.channelListWidget.count()):
             if self.channelListWidget.item(index).checkState() == Qt.Checked:
                 checked_chans.append(self.channelListWidget.item(index))
-        chanlist = [x.text() for x in checked_chans]
+        if id:
+            chanlist = [x.data(32) for x in checked_chans]
+        else:
+            chanlist = [x.text() for x in checked_chans]
         return chanlist
         
     def get_supa_time(self,startTime,endTime):
         time_dict = {}
         coord_dict = {}
         area_sums = {}
-        #for area in self.curr.keys():
-        #    area_sums[area] = [0 for i in range(0,24)]
+        for area in self.curr.keys():
+            area_sums[area] = [0 for i in range(0,24)]
         self.db.open()
         currencylist = self.get_checked_currencies()
         namelist = self.get_checked_chans()
         names = self.namelist_string(namelist)
         currencies = json.dumps(currencylist).replace("[","(").replace("]",")").replace('"',"'")
         query = QSqlQuery()
-        query.prepare("select extract(hour from time_sent AT TIME ZONE 'UTC') as hour, count(distinct user_id) as users, currency, count(*) as donations from messages inner join video v on v.video_id = messages.video_id inner join channel c on c.id = v.channel_id WHERE c.name IN "+names+" and currency in " + currencies + " and time_sent >= :start and time_sent < :end group by currency, extract(hour from time_sent AT TIME ZONE 'UTC') order by hour")
+        #query.prepare("select extract(hour from time_sent AT TIME ZONE 'UTC') as hour, count(distinct user_id) as users, currency, count(*) as donations from messages inner join video v on v.video_id = messages.video_id inner join channel c on c.id = v.channel_id WHERE c.name IN "+names+" and currency in " + currencies + " and time_sent >= :start and time_sent < :end group by currency, extract(hour from time_sent AT TIME ZONE 'UTC') order by hour")
+        query.prepare("select extract(hour from time_sent AT TIME ZONE 'UTC') as hour, count(distinct user_id) as users, currency, count(*) as donations from messages inner join video v on v.video_id = messages.video_id WHERE v.channel_id IN "+names+" and currency in " + currencies + " and time_sent >= :start and time_sent < :end group by currency, extract(hour from time_sent AT TIME ZONE 'UTC') order by hour")
         query.bindValue(":start",startTime)
         query.bindValue(":end",endTime)
         query.exec_()
@@ -402,15 +556,57 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
             #coord_dict[query.value(2)]["time"].append(time(hour = int(query.value(0)), tzinfo = timezone.utc))
             coord_dict[currency]["users"][hournr] += usercount
             for area in self.curr.keys():
+                #if area not in area_sums.keys():
+                    #area_sums[area] = [0 for i in range(0,24)]
                 if currency in self.curr[area]:
-                    if area not in area_sums.keys():
-                        area_sums[area] = [0 for i in range(0,24)]
-                        #print("empty",area,area_sums[area])
                     area_sums[area][hournr] += usercount
                                
         self.db.close()
         return time_dict, coord_dict, area_sums
-        
+    
+    def timezone_friendliness(self,streamer_heatmap):
+        friend_time = self.generate_friendliness_mtx()
+        friendlyindex = {}
+        for streamer, heatmap in streamer_heatmap.items():
+            shaved_map = np.delete(heatmap,[7,8,9],0)
+            streamedhrs = shaved_map.sum()
+            timezone_friend = {}
+            for tz, idealtime in friend_time.items():
+                friendlyhrs = np.multiply(shaved_map,idealtime).sum()
+                friendlyperc = friendlyhrs / streamedhrs
+                timezone_friend[tz] = friendlyperc
+            friendlyindex[streamer] = timezone_friend
+        print(friendlyindex)
+        return friendlyindex
+    
+    def generate_friendliness_mtx(self):
+        timezones = [pytz.timezone("Asia/Tokyo"),pytz.timezone("Asia/Jakarta"),pytz.timezone("Europe/Moscow"),pytz.timezone("Europe/Berlin"),pytz.timezone("US/Eastern"),pytz.timezone("US/Pacific")]
+        friendly_timeframes = {}
+        for zone in timezones:
+            watch_start = [zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=14)),zone.localize(datetime(2000,1,1,hour=14))]
+            watch_end = [zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=2)),zone.localize(datetime(2000,1,2,hour=2)),zone.localize(datetime(2000,1,2,hour=0))]
+            timeframe = np.zeros((7,24))
+            days_p = 0
+            for start, end in zip(watch_start, watch_end):
+                dur = end-start
+                start_utc = start.astimezone(pytz.utc)
+                testtime = start_utc
+                endtime = end.astimezone(pytz.utc)
+                while testtime <= endtime:
+                    to_add = 0.0
+                    if endtime - testtime < timedelta(hours=1):
+                        if endtime - testtime <= timedelta(minutes=5):
+                            to_add = 0
+                        else:
+                            to_add = (endtime - testtime)/timedelta(hours=1)
+                    else:
+                        to_add = 1.0
+                    timeframe[(testtime.day-1+days_p)%7][testtime.time().hour] += to_add
+                    testtime = testtime + timedelta(hours=1)
+                days_p += 1
+            friendly_timeframes[watch_start[0].tzname()] = timeframe
+        #print(friendly_timeframes)
+        return friendly_timeframes
         
 class MySqlModel(QSqlQueryModel):
     def data(self, index, role):
