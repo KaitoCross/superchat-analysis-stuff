@@ -9,7 +9,7 @@ from pytchat import config
 import math
 
 class channel_monitor:
-    def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt", loop=None):
+    def __init__(self,chan_file_path,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt", loop=None):
         self.running = True
         self.reset_used = False
         signal.signal(signal.SIGUSR1, self.signal_handler_1)
@@ -18,9 +18,13 @@ class channel_monitor:
         keyfile = open(keyfilepath, "r")
         self.yt_api_key = keyfile.read()
         keyfile.close()
+        chan_file = open(chan_file_path, "r")
+        self.chan_ids = [line.rstrip() for line in chan_file]
+        chan_file.close()
+        max_watched_channels = len(chan_ids)
+        print('# of channels bein watched:',max_watched_channels)
         self.api_points_used = api_pts_used
         self.video_analysis = {}
-        self.chan_ids = chan_list
         self.running_streams = []
         self.analyzed_streams = []
         self.api_points = 10000.0 #available API points
@@ -33,7 +37,7 @@ class channel_monitor:
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
-        fh = logging.FileHandler(keyfilepath+"_monitor.debuglog")
+        fh = logging.FileHandler(chan_file_path+"_monitor.debuglog")
         fh.setLevel(logging.DEBUG)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -216,23 +220,18 @@ class channel_monitor:
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('channel_id', metavar='N', type=str, nargs='+', help='The YouTube channel IDs')
+    parser.add_argument('channel_file', metavar='N', type=str, help='The file containing YouTube channel IDs')
     parser.add_argument('--pts','-p', action='store', type=int, default=0, help='The amout of YouTube API points already used today')
     parser.add_argument('--keyfile','-k', action='store', type=str, default="", help='The file with the API key')
     args = parser.parse_args()
-    chan_ids = args.channel_id
-    max_watched_channels = len(chan_ids)
-    print('# of channels bein watched:',max_watched_channels)
+    chan_file_path = args.channel_file
     keyfilepath = str()
     if args.keyfile:
         keyfilepath = args.keyfile
     else:
         keyfilepath = "yt_api_key.txt"
     loop = asyncio.get_event_loop()
-    monitor = channel_monitor(chan_ids,args.pts,keyfilepath,loop)
-    #loop.set_debug(True)
-    #logging.getLogger("asyncio").setLevel(logging.INFO)
-    #logging.basicConfig(level=logging.INFO)
+    monitor = channel_monitor(chan_file_path,args.pts,keyfilepath,loop)
     try:
         loop.run_until_complete(monitor.main())
     except asyncio.CancelledError:
