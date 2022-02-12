@@ -22,7 +22,7 @@ class SuperchatArchiver:
         self.cancelled = False
         self.loop = loop
         self.t_pool = t_pool
-        self.api_points_used = 1.0
+        self.api_points_log = [(1.0,datetime.now(tz=pytz.timezone('Europe/Berlin')))]
         self.api = YouTubeDataAPI(api_key) #uses 1p to check key
         self.videoid = vid_id
         self.channel_id = ""
@@ -50,7 +50,7 @@ class SuperchatArchiver:
                           "\u20aa": "ILS"}
 
         self.metadata = self.get_video_info(self.videoid)
-        self.api_points_used += 1.0
+        self.api_points_log.append((1.0,datetime.now(tz=pytz.timezone('Europe/Berlin'))))
         self.total_member_msgs = 0
         self.running = True
         self.running_chat = None
@@ -138,7 +138,7 @@ class SuperchatArchiver:
             return None
 
     async def async_get_video_info(self,video_ID:str):
-        self.api_points_used += 1.0
+        self.api_points_log.append((1.0,datetime.now(tz=pytz.timezone('Europe/Berlin'))))
         api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
         return api_metadata
 

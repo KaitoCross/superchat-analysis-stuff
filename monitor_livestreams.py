@@ -121,7 +121,7 @@ class channel_monitor:
                     t_delta = resume_at-time_now
                     self.sleep_dur = t_delta.total_seconds()
             await self.log_output('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
-            await self.log_output('approx. '+str(self.api_points-self.api_points_used)+' YouTube points left')
+            await self.log_output('approx. '+str(total_points_used)+' YouTube points left')
             await self.log_output('approx. '+str(self.holodex_api_points-self.holo_api_points_used)+' Holodex points left')
             await self.log_output((self.requests_left, "requests left"))
             awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
@@ -177,9 +177,10 @@ class channel_monitor:
 
     async def total_api_points_used(self):
         points_used_by_analysis = 0.0
+        compare_time = await self.last_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
         for stream in self.video_analysis.keys():
             if self.video_analysis[stream] is not None:
-                points_used_by_analysis += self.video_analysis[stream].api_points_used
+                points_used_by_analysis += sum(i[0] for i in self.video_analysis[stream].api_points_log if i[1] >= compare_time)
         return points_used_by_analysis+self.api_points_used
     
     async def log_output(self,logmsg,level = 20):
