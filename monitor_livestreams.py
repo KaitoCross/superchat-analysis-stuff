@@ -60,9 +60,12 @@ class channel_monitor:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
-        loop.add_signal_handler(signal.SIGUSR1,self.signal_handler_1)
-        loop.add_signal_handler(signal.SIGUSR2,self.signal_handler_2)
-        loop.add_signal_handler(signal.SIGHUP,self.reload_config)
+        #loop.add_signal_handler(signal.SIGUSR1,self.signal_handler_1)
+        #loop.add_signal_handler(signal.SIGUSR2,self.signal_handler_2)
+        #loop.add_signal_handler(signal.SIGHUP,self.reload_config)
+        loop.add_signal_handler(signal.SIGHUP,lambda signame="SIGHUP": asyncio.create_task(self.reload_config(signame)))
+        loop.add_signal_handler(signal.SIGUSR1,lambda signame="SIGUSR1": asyncio.create_task(self.signal_handler_1(signame)))
+        loop.add_signal_handler(signal.SIGUSR2,lambda signame="SIGUSR2": asyncio.create_task(self.signal_handler_2(signame)))
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
         self.sleep_dur = max(temp.total_seconds() / self.requests_left,self.min_sleep)
@@ -207,7 +210,7 @@ class channel_monitor:
     async def calc_requests_left(self):
         return math.floor((self.holodex_api_points-self.holo_api_points_used) / self.cost_per_request)
 
-    async def signal_handler_1(self, sig, frame):
+    async def signal_handler_1(self, sig):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.video_analysis[stream].cancel()
@@ -217,14 +220,14 @@ class channel_monitor:
         await self.log_output("youtube api points used: " + str(pts_used))
         await self.log_output("holodex api points used: " + str(self.holo_api_points_used))
         
-    async def signal_handler_2(self, sig, frame):
+    async def signal_handler_2(self, sig):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 await self.log_output(str(self.video_analysis[stream]))
     
-    async def reload_config(self, sig, frame):
+    async def reload_config(self, sig):
         await self.log_output('reloading configuration')
-        keyfile = open(self.config_files['yt'], "r")
+        keyfile = open(self.config_files['yt_key'], "r")
         self.yt_api_key = keyfile.read()
         keyfile.close()
         keyfile = open(self.config_files['holodex'],"r")
