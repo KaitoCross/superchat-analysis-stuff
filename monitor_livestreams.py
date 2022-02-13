@@ -8,7 +8,7 @@ from pytchat import config
 import math
 
 class channel_monitor:
-    def __init__(self,chan_file_path,api_pts_used = 0.0, yt_keyfilepath = "yt_api_key.txt", holodex_keyfilepath = "holodex_key.txt", loop=None):
+    def __init__(self,chan_file_path,yt_api_pts_used = 0.0, yt_keyfilepath = "yt_api_key.txt", holo_api_pts_used = 0.0, holodex_keyfilepath = "holodex_key.txt", loop=None):
         self.running = True
         self.reset_used = False
         self.yt_api_key = "####"
@@ -26,8 +26,8 @@ class channel_monitor:
                             'channels': chan_file_path}
         max_watched_channels = len(self.chan_ids)
         print('# of channels bein watched:',max_watched_channels)
-        self.api_points_used = api_pts_used
-        self.holo_api_points_used = 0
+        self.api_points_used = yt_api_pts_used
+        self.holo_api_points_used = holo_api_pts_used
         self.video_analysis = {}
         self.running_streams = []
         self.analyzed_streams = []
@@ -60,9 +60,6 @@ class channel_monitor:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
-        #loop.add_signal_handler(signal.SIGUSR1,self.signal_handler_1)
-        #loop.add_signal_handler(signal.SIGUSR2,self.signal_handler_2)
-        #loop.add_signal_handler(signal.SIGHUP,self.reload_config)
         loop.add_signal_handler(signal.SIGHUP,lambda signame="SIGHUP": asyncio.create_task(self.reload_config(signame)))
         loop.add_signal_handler(signal.SIGUSR1,lambda signame="SIGUSR1": asyncio.create_task(self.signal_handler_1(signame)))
         loop.add_signal_handler(signal.SIGUSR2,lambda signame="SIGUSR2": asyncio.create_task(self.signal_handler_2(signame)))
@@ -242,8 +239,9 @@ class channel_monitor:
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('channel_file', metavar='N', type=str, help='The file containing YouTube channel IDs')
-    parser.add_argument('--pts','-p', action='store', type=int, default=0, help='The amout of YouTube API points already used today')
+    parser.add_argument('--yt_pts','-ytp', action='store', type=int, default=0, help='The amout of YouTube API points already used today')
     parser.add_argument('--ytkeyfile','-yt_k', action='store', type=str, default="", help='The file with the YouTube API key')
+    parser.add_argument('--holo_pts','-hdp', action='store', type=int, default=0, help='The amout of Holodex API points already used today')
     parser.add_argument('--holokeyfile','-h_k', action='store', type=str, default="", help='The file with the Holodex API key')
     args = parser.parse_args()
     chan_file_path = args.channel_file
@@ -258,7 +256,7 @@ if __name__ =='__main__':
     else:
         holo_keyfilepath = "holodex_key.txt"
     loop = asyncio.get_event_loop()
-    monitor = channel_monitor(chan_file_path,args.pts,yt_keyfilepath,holo_keyfilepath,loop)
+    monitor = channel_monitor(chan_file_path,args.yt_pts,yt_keyfilepath,args.holo_pts,holo_keyfilepath,loop)
     try:
         loop.run_until_complete(monitor.main())
     except asyncio.CancelledError:
