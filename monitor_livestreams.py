@@ -11,9 +11,6 @@ class channel_monitor:
     def __init__(self,chan_file_path,api_pts_used = 0.0, yt_keyfilepath = "yt_api_key.txt", holodex_keyfilepath = "holodex_key.txt", loop=None):
         self.running = True
         self.reset_used = False
-        signal.signal(signal.SIGUSR1, self.signal_handler_1)
-        signal.signal(signal.SIGUSR2, self.signal_handler_2)
-        signal.signal(signal.SIGHUP, self.reload_config)
         self.yt_api_key = "####"
         keyfile = open(yt_keyfilepath, "r")
         self.yt_api_key = keyfile.read()
@@ -63,6 +60,9 @@ class channel_monitor:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGUSR1,self.signal_handler_1)
+        loop.add_signal_handler(signal.SIGUSR2,self.signal_handler_2)
+        loop.add_signal_handler(signal.SIGHUP,self.reload_config)
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
         self.sleep_dur = max(temp.total_seconds() / self.requests_left,self.min_sleep)
@@ -207,26 +207,23 @@ class channel_monitor:
     async def calc_requests_left(self):
         return math.floor((self.holodex_api_points-self.holo_api_points_used) / self.cost_per_request)
 
-    def signal_handler_1(self, sig, frame):
+    async def signal_handler_1(self, sig, frame):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.video_analysis[stream].cancel()
         #self.running = False
-        self.logger.log(10,"cancelled logging")
-        points_used_by_analysis = 0.0
-        for stream in self.video_analysis.keys():
-            if self.video_analysis[stream] is not None:
-                points_used_by_analysis += self.video_analysis[stream].api_points_used
-        pts_used = points_used_by_analysis+self.api_points_used
-        self.logger.log(20,"api points used: " + str(pts_used))
+        await self.log_output("cancelled logging")
+        pts_used = await self.total_api_points_used()
+        await self.log_output("youtube api points used: " + str(pts_used))
+        await self.log_output("holodex api points used: " + str(self.holo_api_points_used))
         
-    def signal_handler_2(self, sig, frame):
+    async def signal_handler_2(self, sig, frame):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
-                self.logger.log(20,str(self.video_analysis[stream]))
+                await self.log_output(str(self.video_analysis[stream]))
     
-    def reload_config(self, sig, frame):
-        self.logger.log(20,'reloading configuration')
+    async def reload_config(self, sig, frame):
+        await self.log_output('reloading configuration')
         keyfile = open(self.config_files['yt'], "r")
         self.yt_api_key = keyfile.read()
         keyfile.close()
@@ -237,7 +234,7 @@ class channel_monitor:
         self.chan_ids = [line.rstrip() for line in chan_file]
         chan_file.close()
         max_watched_channels = len(self.chan_ids)
-        self.logger.log(20,'# of channels bein watched: '+max_watched_channels)
+        await self.log_output('# of channels bein watched: '+str(max_watched_channels))
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
