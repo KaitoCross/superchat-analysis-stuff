@@ -13,6 +13,7 @@ class channel_monitor:
         self.reset_used = False
         signal.signal(signal.SIGUSR1, self.signal_handler_1)
         signal.signal(signal.SIGUSR2, self.signal_handler_2)
+        signal.signal(signal.SIGHUP, self.reload_config)
         self.yt_api_key = "####"
         keyfile = open(yt_keyfilepath, "r")
         self.yt_api_key = keyfile.read()
@@ -23,6 +24,9 @@ class channel_monitor:
         chan_file = open(chan_file_path, "r")
         self.chan_ids = [line.rstrip() for line in chan_file]
         chan_file.close()
+        self.config_files = {'yt_key': yt_keyfilepath,
+                            'holodex': holodex_keyfilepath,
+                            'channels': chan_file_path}
         max_watched_channels = len(self.chan_ids)
         print('# of channels bein watched:',max_watched_channels)
         self.api_points_used = api_pts_used
@@ -31,7 +35,7 @@ class channel_monitor:
         self.running_streams = []
         self.analyzed_streams = []
         self.api_points = 10000.0 #available API points
-        self.holodex_api_points = 24*60/30*10
+        self.holodex_api_points = 24*60/10*10
         self.desired_leftover_points = 100.0 #for safety measure since the SuperchatArchiver objects will use some API points
         self.max_watched_channels = len(self.chan_ids)
         self.cost_per_request = 10.0
@@ -39,6 +43,7 @@ class channel_monitor:
         self.requests_left = math.floor((self.holodex_api_points-self.holo_api_points_used) / self.cost_per_request)
         #Calculate how long I have to wait for the next search request - trying not to exceed the 24h API usage limits
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
+        self.min_sleep = 300.0
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
         fh = logging.FileHandler(chan_file_path+"_monitor.debuglog")
@@ -60,7 +65,7 @@ class channel_monitor:
             self.loop = asyncio.get_running_loop()
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
-        self.sleep_dur = max(temp.total_seconds() / self.requests_left,300.0)
+        self.sleep_dur = max(temp.total_seconds() / self.requests_left,self.min_sleep)
         while self.running:
             self.running_streams.clear()
             try:
@@ -113,7 +118,7 @@ class channel_monitor:
                 self.requests_left = await self.calc_requests_left()
                 if self.requests_left > 0:
                     temp = await self.time_until_specified_hour(0,pytz.timezone('America/Los_Angeles'))
-                    self.sleep_dur = max(temp.total_seconds()/self.requests_left,300.0)
+                    self.sleep_dur = max(temp.total_seconds()/self.requests_left,self.min_sleep)
                     resume_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))+timedelta(seconds=self.sleep_dur)
                 else:
                     time_now = datetime.now(tz=pytz.timezone('America/Los_Angeles'))
@@ -121,7 +126,7 @@ class channel_monitor:
                     t_delta = resume_at-time_now
                     self.sleep_dur = t_delta.total_seconds()
             await self.log_output('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
-            await self.log_output('approx. '+str(total_points_used)+' YouTube points left')
+            await self.log_output('approx. '+str(total_points_used)+' YouTube points used')
             await self.log_output('approx. '+str(self.holodex_api_points-self.holo_api_points_used)+' Holodex points left')
             await self.log_output((self.requests_left, "requests left"))
             awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
@@ -219,6 +224,20 @@ class channel_monitor:
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.logger.log(20,str(self.video_analysis[stream]))
+    
+    def reload_config(self, sig, frame):
+        self.logger.log(20,'reloading configuration')
+        keyfile = open(self.config_files['yt'], "r")
+        self.yt_api_key = keyfile.read()
+        keyfile.close()
+        keyfile = open(self.config_files['holodex'],"r")
+        self.holodex_key = keyfile.read().replace("\n", "")
+        keyfile.close()
+        chan_file = open(self.config_files['channels'], "r")
+        self.chan_ids = [line.rstrip() for line in chan_file]
+        chan_file.close()
+        max_watched_channels = len(self.chan_ids)
+        self.logger.log(20,'# of channels bein watched: '+max_watched_channels)
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
