@@ -323,14 +323,18 @@ class SuperchatArchiver:
                     if type(self.running_chat.exception) is exceptions.InvalidVideoIdException or type(self.running_chat.exception) is exceptions.ChatParseException:
                         #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
                         #ChatParseException: No chat found
-                        self.cancelled = True
+                        if type(self.running_chat.exception) is exceptions.InvalidVideoIdException:
+                            self.cancelled = True
+                        else:
+                            self.chat_err = True
+                        await self.log_output("unspecified chat error")
                     if repeats == 0 and not self.chat_err and not self.cancelled and islive:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
                     await self.httpclient.aclose()
                     newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
                     if newmetadata is not None:
-                        if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
+                        if newmetadata["live"] in ["upcoming","live"] and not self.cancelled: #in case the livestream has not ended yet!
                             await self.log_output(("Error! Chat monitor ended prematurely!",self.running_chat.is_alive()))
                             self.chat_err = True
                     else:
