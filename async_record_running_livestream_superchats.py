@@ -329,6 +329,7 @@ class SuperchatArchiver:
                             else:
                                 self.chat_err = True
                         await self.log_output("live chat recording error")
+                        await self.log_output(str(type(self.running_chat.exception)))
                         await self.log_output(str(self.running_chat.exception))
                     if repeats == 0 and not self.chat_err and not self.cancelled and islive:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
