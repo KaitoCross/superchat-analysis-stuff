@@ -32,7 +32,7 @@ class channel_monitor:
         self.running_streams = []
         self.analyzed_streams = []
         self.api_points = 10000.0 #available API points
-        self.holodex_api_points = 24*60/10*10
+        self.holodex_api_points = (24*60/10)*10
         self.desired_leftover_points = 100.0 #for safety measure since the SuperchatArchiver objects will use some API points
         self.max_watched_channels = len(self.chan_ids)
         self.cost_per_request = 10.0
@@ -99,6 +99,7 @@ class channel_monitor:
                             #if you exceed your API quota. That's why we do the same in the code above.
                             self.api_points_used = 10000.0
                             await self.log_output("API Quota exceeded!",30)
+                            break
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
                             self.video_analysis.pop(stream)
