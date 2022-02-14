@@ -324,12 +324,13 @@ class SuperchatArchiver:
                     if self.running_chat.exception:
                         if type(self.running_chat.exception) in [exceptions.InvalidVideoIdException, exceptions.ChatParseException, exceptions.NoContents]:
                             #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
+                            #In case of error, cancel always if member stream detected
                             #ChatParseException: No chat found
                             if self.running_chat.member_stream or type(self.running_chat.exception) is exceptions.InvalidVideoIdException:
                                 self.cancel()
-                            else:
+                            elif type(self.running_chat.exception) is exceptions.ChatParseException:
                                 self.chat_err = True
-                        await self.log_output("live chat recording error")
+                        await self.log_output("live chat recording event")
                         if self.running_chat.member_stream:
                             await self.log_output("member stream detected")
                         await self.log_output(str(type(self.running_chat.exception)))
@@ -517,7 +518,6 @@ if __name__ =='__main__':
     keyfile.close()
     loop = asyncio.get_event_loop()
     analysis = SuperchatArchiver(args.yt_vid_id,yt_api_key,args.wordcloud,loop,args.suffix)
-    #logging.basicConfig(level=logging.INFO)
     try:
         loop.run_until_complete(analysis.main())
     except asyncio.CancelledError:
