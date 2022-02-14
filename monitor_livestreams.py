@@ -77,8 +77,9 @@ class channel_monitor:
                         if resp.status == 200:
                             streams_raw_json = await resp.json()
                             for streams in streams_raw_json:
-                                self.video_analysis.setdefault(streams['id'],None)
-                                self.running_streams.append(streams['id'])
+                                if "membersonly" not in streams['topic_id']:
+                                    self.video_analysis.setdefault(streams['id'],None)
+                                    self.running_streams.append(streams['id'])
             except ValueError as v:
                 await self.log_output("API Problem!",30)
                 await self.log_output(str(v),30)
