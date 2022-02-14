@@ -329,6 +329,7 @@ class SuperchatArchiver:
                             else:
                                 self.chat_err = True
                         await self.log_output("unspecified chat error")
+                        await self.log_output(str(self.running_chat))
                     if repeats == 0 and not self.chat_err and not self.cancelled and islive:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
