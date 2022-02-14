@@ -330,11 +330,11 @@ class SuperchatArchiver:
                                 self.cancel()
                             elif type(self.running_chat.exception) is exceptions.ChatParseException:
                                 self.chat_err = True
-                        await self.log_output("live chat recording event")
+                        await self.log_output("live chat recording event",30)
                         if self.running_chat.member_stream:
-                            await self.log_output("member stream detected")
-                        await self.log_output(str(type(self.running_chat.exception)))
-                        await self.log_output(str(self.running_chat.exception))
+                            await self.log_output("member stream detected",30)
+                        await self.log_output(str(type(self.running_chat.exception)),30)
+                        await self.log_output(str(self.running_chat.exception),30)
                     if repeats == 0 and not self.chat_err and not self.cancelled and islive:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
@@ -342,7 +342,7 @@ class SuperchatArchiver:
                     newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
                     if newmetadata is not None:
                         if newmetadata["live"] in ["upcoming","live"] and not self.cancelled: #in case the livestream has not ended yet!
-                            await self.log_output(("Error! Chat monitor ended prematurely!",self.running_chat.is_alive()))
+                            await self.log_output(("Error! Chat monitor ended prematurely!",self.running_chat.is_alive()),30)
                             self.chat_err = True
                     else:
                         islive = False
@@ -363,7 +363,7 @@ class SuperchatArchiver:
                             if self.videoinfo["title"] != old_title:
                                 self.videoinfo["old_title"] = old_title
                         else:
-                            await self.log_output(("couldn't retrieve new metadata for",self.videoid,old_title))
+                            await self.log_output(("couldn't retrieve new metadata for",self.videoid,old_title),30)
                     else:
                         islive = False
                     if self.msg_counter > 0 and not self.chat_err:
@@ -464,7 +464,6 @@ class SuperchatArchiver:
                     if c.type == "sponsorMessage":
                         self.total_member_msgs += 1
                         sc_info["member_level"] = c.member_level
-                        #await self.log_output(sc_info)
                     else:
                         self.total_counted_msgs += 1
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
