@@ -320,13 +320,14 @@ class SuperchatArchiver:
                     await self.log_output("starting...")
                     while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
-                    if type(self.running_chat.exception) is exceptions.InvalidVideoIdException or type(self.running_chat.exception) is exceptions.ChatParseException:
-                        #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
-                        #ChatParseException: No chat found
-                        if type(self.running_chat.exception) is exceptions.InvalidVideoIdException:
-                            self.cancelled = True
-                        else:
-                            self.chat_err = True
+                    if self.running_chat.exception:
+                        if type(self.running_chat.exception) is exceptions.InvalidVideoIdException or type(self.running_chat.exception) is exceptions.ChatParseException:
+                            #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
+                            #ChatParseException: No chat found
+                            if type(self.running_chat.exception) is exceptions.InvalidVideoIdException:
+                                self.cancelled = True
+                            else:
+                                self.chat_err = True
                         await self.log_output("unspecified chat error")
                     if repeats == 0 and not self.chat_err and not self.cancelled and islive:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
