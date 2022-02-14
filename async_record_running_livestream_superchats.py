@@ -34,6 +34,7 @@ class SuperchatArchiver:
         self.sc_logs_list = []
         self.metadata_list = []
         self.gen_wc = gen_WC
+        self.waiting = False
         self.unique_donors = {}
         self.clean_currency = {"¥": "JPY",
                           "NT$": "TWD",
@@ -321,14 +322,16 @@ class SuperchatArchiver:
                     while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
                     if self.running_chat.exception:
-                        if type(self.running_chat.exception) is exceptions.InvalidVideoIdException or type(self.running_chat.exception) is exceptions.ChatParseException:
+                        if type(self.running_chat.exception) in [exceptions.InvalidVideoIdException, exceptions.ChatParseException, exceptions.NoContents]:
                             #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
                             #ChatParseException: No chat found
-                            if type(self.running_chat.exception) is exceptions.InvalidVideoIdException:
-                                self.cancelled = True
+                            if self.running_chat.member_stream or type(self.running_chat.exception) is exceptions.InvalidVideoIdException:
+                                self.cancel()
                             else:
                                 self.chat_err = True
                         await self.log_output("live chat recording error")
+                        if self.running_chat.member_stream:
+                            await self.log_output("member stream detected")
                         await self.log_output(str(type(self.running_chat.exception)))
                         await self.log_output(str(self.running_chat.exception))
                     if repeats == 0 and not self.chat_err and not self.cancelled and islive:
