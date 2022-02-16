@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
 from youtube_api import YouTubeDataAPI
-import argparse, time, os, asyncio, pytz, logging, signal, sys, concurrent.futures, traceback
+import argparse, time, os, asyncio, pytz, logging, signal, sys, concurrent.futures, traceback, requests
 from datetime import datetime, timezone, timedelta
 import aiohttp
 from pytchat import config
@@ -103,6 +103,8 @@ class channel_monitor:
                             self.api_points_used = 10000.0
                             await self.log_output("API Quota exceeded!",30)
                             break
+                        except requests.exceptions.ConnectionError:
+                            await self.log_output("Connection error, retrying with next scan! ID: "+stream,30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
                             self.video_analysis.pop(stream)
