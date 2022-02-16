@@ -85,7 +85,7 @@ class channel_monitor:
                 await self.log_output(str(v),30)
             except Exception as e:
                 await self.log_output("live stream lookup failed!",30)
-                await self.log_output(str(v),30)
+                await self.log_output(str(e),30)
             await self.log_output(self.video_analysis)
             current_time = datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()
             await self.log_output(list(self.video_analysis.keys()))#, planned_streams)
