@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
+import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx, pytchat
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
 from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor, config, exceptions)
@@ -321,20 +321,25 @@ class SuperchatArchiver:
                     await self.log_output("starting...")
                     while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
-                    if self.running_chat.exception:
-                        if type(self.running_chat.exception) in [exceptions.InvalidVideoIdException, exceptions.ChatParseException, exceptions.NoContents]:
-                            #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
-                            #In case of error, cancel always if member stream detected
-                            #ChatParseException: No chat found
-                            if self.running_chat.member_stream or type(self.running_chat.exception) is exceptions.InvalidVideoIdException:
-                                self.cancel()
-                            elif type(self.running_chat.exception) is exceptions.ChatParseException:
-                                self.chat_err = True
-                        await self.log_output("live chat recording event",30)
+                    try:
+                        await self.log_output(str(self.running_chat.exception),20)
+                        await self.log_output(str(type(self.running_chat.exception)),20)
+                        self.running_chat.raise_for_status()
+                    except exceptions.NoContents:
                         if self.running_chat.member_stream:
+                            self.cancel()
+                            await self.log_output("a member stream detected",30)
+                    except exceptions.InvalidVideoIdException:
+                        self.cancel() #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
+                    except exceptions.ChatParseException: #ChatParseException: No chat found
+                        self.chat_err = True
+                    except Exception as e:
+                        #In case of error, cancel always if member stream detected
+                        if self.running_chat.member_stream:
+                            self.cancel()
                             await self.log_output("member stream detected",30)
-                        await self.log_output(str(type(self.running_chat.exception)),30)
-                        await self.log_output(str(self.running_chat.exception),30)
+                        await self.log_output(str(type(e)),30)
+                        await self.log_output(str(e),30)
                     if repeats == 0 and not self.chat_err and not self.cancelled and islive:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
