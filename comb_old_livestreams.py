@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
-import argparse, time, os, asyncio, pytz, logging, signal, sys, asyncpg, json
+import argparse, time, os, asyncio, pytz, logging, signal, sys, asyncpg, json, concurrent.futures, traceback
 from datetime import datetime, timezone, timedelta
 from pytchat import config
 import pytchat
