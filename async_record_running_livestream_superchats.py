@@ -332,7 +332,7 @@ class SuperchatArchiver:
                     except exceptions.InvalidVideoIdException:
                         self.cancel() #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
                     except exceptions.ChatParseException: #ChatParseException: No chat found
-                        self.chat_err = True
+                        await self.log_output("no chat detected/parse error",30)
                     except Exception as e:
                         #In case of error, cancel always if member stream detected
                         if self.running_chat.member_stream:
