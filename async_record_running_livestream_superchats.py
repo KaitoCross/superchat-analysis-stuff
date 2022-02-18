@@ -371,7 +371,7 @@ class SuperchatArchiver:
                             await self.log_output(("couldn't retrieve new metadata for",self.videoid,old_title),30)
                     else:
                         islive = False
-                    if self.msg_counter > 0 and not self.chat_err:
+                    if (self.msg_counter+self.total_member_msgs) > 0 and not self.chat_err:
                         had_scs += 1
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
                         self.total_counted_msgs = 0
