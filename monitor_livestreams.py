@@ -19,7 +19,7 @@ class channel_monitor:
         self.holodex_key = keyfile.read().replace("\n", "")
         keyfile.close()
         chan_file = open(chan_file_path, "r")
-        self.chan_ids = [line.rstrip() for line in chan_file]
+        self.chan_ids = set([line.rstrip() for line in chan_file])
         chan_file.close()
         self.config_files = {'yt_key': yt_keyfilepath,
                             'holodex': holodex_keyfilepath,
@@ -103,8 +103,9 @@ class channel_monitor:
                             self.api_points_used = 10000.0
                             await self.log_output("API Quota exceeded!",30)
                             break
-                        except requests.exceptions.ConnectionError:
-                            await self.log_output("Connection error, retrying with next scan! ID: "+stream,30)
+                        except requests.exceptions.ConnectionError as e:
+                            await self.log_output("Connection error, retrying with next scan! Video ID: "+stream,30)
+                            await self.log_output(str(e),30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
                             self.video_analysis.pop(stream)
@@ -238,7 +239,7 @@ class channel_monitor:
         self.holodex_key = keyfile.read().replace("\n", "")
         keyfile.close()
         chan_file = open(self.config_files['channels'], "r")
-        self.chan_ids = [line.rstrip() for line in chan_file]
+        self.chan_ids = set([line.rstrip() for line in chan_file])
         chan_file.close()
         max_watched_channels = len(self.chan_ids)
         await self.log_output('# of channels bein watched: '+str(max_watched_channels))
