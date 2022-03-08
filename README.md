@@ -9,7 +9,8 @@ video ID: A unique identifier for each YouTube video/livestream. It can be found
 usage: `python3 monitor_livestreams.py channel_ids`  
 It supports multiple channels at once by passing multiple channel IDs as parameter.  
 In order to track the activity of the channel, we rely on the YouTube Data API v3. Please get yourself the appropriate API key and save it under yt_api_key.txt in the same folder as this python script.  
-When it detects a planned livestream, it will start recording Superchats before the livestream starts. Once it ends, it will try to re-record superchats from the archive of the video in order to retrieve potentially previously unrecorded superchats. It automatically adds those to the statistics and logs.
+When it detects a planned livestream, it will start recording Superchats before the livestream starts. Once it ends, it will try to re-record superchats from the archive of the video in order to retrieve potentially previously unrecorded superchats. It automatically adds those to the statistics and logs.  
+It also saves membership anniversary messages. It treats them like super chats, using the imaginary currency MON (short for months), saving the membership duration (in months) as the donation value.
 
 ## recording livestream superchats
 usage: `python3 async_record_running_livestream_superchats.py video_ID`  
@@ -36,7 +37,7 @@ All of the data is additionally stored in a postgres database which you must cre
 You need to install mecab on your PC before using this script.
 usage: `python3 sc_wordcloud.py path_to_superchat_log_file path_to_mask_image`  
 or: `python3 sc_wordcloud_psql.py video_id path_to_mask_image` (if you want to use the data from the Postgres database)
-It generates a word cloud from a superchat log in the shape of the object in the mask image and saves a picture of the word cloud in the folder of the superchat log file. The object must be coloured. The background of the object must be pure white - all purely white areas will be detected as background. If you don't have a mask image, use the word "None" instead of a path to an image to generate a wordcloud with a size of 1280x720 pixels.
+It generates a word cloud from a superchat log in the shape of the object in the mask image and saves a picture of the word cloud in the folder of the superchat log file. The object must be coloured. The background of the object must be pure white - all purely white areas will be detected as background. If you don't have a mask image, use the word "None" instead of a path to an image to generate a wordcloud with a size of 1280x720 pixels.  
 If you want to use the Postgres version: The Postgres credentials have to be stored in `postgres-config-qt.json`.
 
 ## Plotting YT data
