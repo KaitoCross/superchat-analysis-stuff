@@ -1,6 +1,10 @@
 # YouTube Superchat analysis tools
 The scripts require [this modified version of pytchat](https://github.com/KaitoCross/pytchat) that is NOT in the pip repository.
 
+## terminology
+channel ID: A unique identifier for each YouTube channel. It's the last part of the URL of a YouTube Channel and always starts with the letters 'UC'  
+video ID: A unique identifier for each YouTube video/livestream. It can be found at the end of the URL of a YouTube Channel, after the `watch?v=` part.
+
 ## monitoring YouTube channels to record superchats from planned livestreams
 usage: `python3 monitor_livestreams.py channel_ids`  
 It supports multiple channels at once by passing multiple channel IDs as parameter.  
@@ -26,17 +30,19 @@ If you add ` -wc` to the command, it will automatically generate a wordcloud aft
 The scripts create a folder for each YouTube Channel it comes across, using the channel ID as folder name. Within these the scripts saves the superchat logs into the sc_logs subfolder, naming the log textfile after the respective video ID + .txt  
 They also save some metadata about the stream (like title, channel, start & end time, total sum of donations split by currencies) in the vid_stats subfolder of the channel folder. The filenames consist of the video ID + _stats.txt at the end.  
 The stored data is JSON formatted.  
-All of the data is additionally stored in a postgres database which you must create by using the sql commands in `db-structure.sql`.  
+All of the data is additionally stored in a postgres database which you must create by using the SQL commands in `db-structure.sql`.  
 
 ## making a superchat wordcloud
-You need to install mecab before using this script.
+You need to install mecab on your PC before using this script.
 usage: `python3 sc_wordcloud.py path_to_superchat_log_file path_to_mask_image`  
-It generates a word cloud from a superchat log in the shape of the object in the mask image and saves a picture of the word cloud in the folder of the superchat log file. The object must be coloured. The background of the object must be pure white - all purely white areas will be detected as background.  
+or: `python3 sc_wordcloud_psql.py video_id path_to_mask_image` (if you want to use the data from the Postgres database)
+It generates a word cloud from a superchat log in the shape of the object in the mask image and saves a picture of the word cloud in the folder of the superchat log file. The object must be coloured. The background of the object must be pure white - all purely white areas will be detected as background. If you don't have a mask image, use the word "None" instead of a path to an image to generate a wordcloud with a size of 1280x720 pixels.
+If you want to use the Postgres version: The Postgres credentials have to be stored in `postgres-config-qt.json`.
 
 ## Plotting YT data
 Usage: `python3 yt_meta_analysis_plot.py`
-This tool uses QT and matplotlib to access the database and plot some information that was recorded through the channel monitoring and superchat recording scripts. It should be self-explanatory once you open it.
+This tool uses QT and matplotlib to access the database and plot some information that was recorded through the channel monitoring and superchat recording scripts. It should be self-explanatory once you open it. To use it, you need to directly connect it to your Postgres database. The Postgres credentials have to be stored in `postgres-config-qt.json`.
 
 ## Plotting the superchat crowd
 usage: `python3 sc_crowd_intersect.py channel_ids`  
-This collection includes `sc_crowd_intersect.py` which plots how the superchat donors are shared between channels as an upset-plot. Each streamer has a set of donors - this plot measures how big the intersections between those sets are. The dots indicate which intersection is being plotted above. Single dots indicate that the above plot indicates how many users have donated exclusively to the streamer marked with the single dot.
+This collection includes `sc_crowd_intersect.py` which plots how the superchat donors are shared between channels as an upset-plot. Each streamer has a set of donors - this plot measures how big the intersections between those sets are. The dots indicate which intersection is being plotted above. Single dots indicate that the above plot indicates how many users have donated exclusively to the streamer marked with the single dot. To use it, you need to directly connect it to your Postgres database. The Postgres credentials have to be stored in `postgres-config-qt.json`.
