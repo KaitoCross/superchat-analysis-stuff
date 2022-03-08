@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
-import argparse, time, os, asyncio, pytz, logging, signal, sys, asyncpg, json
+import argparse, time, os, asyncio, pytz, logging, signal, sys, asyncpg, json, concurrent.futures, traceback
 from datetime import datetime, timezone, timedelta
+from pytchat import config
 import pytchat
 import aiohttp
 from aiohttp_requests import requests
@@ -24,6 +25,19 @@ class redo_recorder:
         self.analyzed_streams = []
         self.api_points = 10000.0 #available API points
         self.desired_leftover_points = 100.0 #for safety measure since the SuperchatArchiver objects will use some API points
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        fh = logging.FileHandler(keyfilepath+"_comb.debuglog.txt")
+        fh.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        dbg_formatter = config.mylogger.MyFormatter()
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(dbg_formatter)
+        ch.setFormatter(formatter)
+        self.logger.addHandler(fh)
+        self.logger.addHandler(ch)
+        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=300)
         #self.max_watched_channels = len(self.chan_ids)
         #self.cost_per_request = 100.0
         #calculate how many times I can monitor all of the channels together using the Youtube search API (costs MANY API points)
@@ -42,7 +56,7 @@ class redo_recorder:
             self.running_streams.append(entry[0])
         print(self.video_analysis)
         for stream in list(self.video_analysis.keys()):
-            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2)
+            self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".comb.txt",min_successful_attempts = 2,minutes_wait = 1,logger = self.logger, t_pool = self.t_pool)
             try:
                 await self.video_analysis[stream].main()
             except pytchat.exceptions.InvalidVideoIdException:

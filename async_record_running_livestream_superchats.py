@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
+import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx, pytchat
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
 from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor, config, exceptions)
@@ -22,7 +22,7 @@ class SuperchatArchiver:
         self.cancelled = False
         self.loop = loop
         self.t_pool = t_pool
-        self.api_points_used = 1.0
+        self.api_points_log = [(1.0,datetime.now(tz=pytz.timezone('Europe/Berlin')))]
         self.api = YouTubeDataAPI(api_key) #uses 1p to check key
         self.videoid = vid_id
         self.channel_id = ""
@@ -34,6 +34,7 @@ class SuperchatArchiver:
         self.sc_logs_list = []
         self.metadata_list = []
         self.gen_wc = gen_WC
+        self.waiting = False
         self.unique_donors = {}
         self.clean_currency = {"¥": "JPY",
                           "NT$": "TWD",
@@ -50,7 +51,7 @@ class SuperchatArchiver:
                           "\u20aa": "ILS"}
 
         self.metadata = self.get_video_info(self.videoid)
-        self.api_points_used += 1.0
+        self.api_points_log.append((1.0,datetime.now(tz=pytz.timezone('Europe/Berlin'))))
         self.total_member_msgs = 0
         self.running = True
         self.running_chat = None
@@ -103,10 +104,10 @@ class SuperchatArchiver:
             self.logger.addHandler(ch)
 
     def __str__(self):
-        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running) + " Live: " + self.videoinfo["live"]
+        return "["+self.videoid+"] " + self.videoinfo.get("channel","") + " - " + self.videoinfo.get("title","") + " - Running: "+str(self.running) + " Live: " + self.videoinfo.get("live","")
     
     def __repr__(self):
-        return "["+self.videoid+"] " + self.videoinfo["channel"] + " - " + self.videoinfo["title"] + " - Running: "+str(self.running) + " Live: " + self.videoinfo["live"]
+        return "["+self.videoid+"] " + self.videoinfo.get("channel","") + " - " + self.videoinfo.get("title","") + " - Running: "+str(self.running) + " Live: " + self.videoinfo.get("live","")
 
     def get_video_info(self,video_ID:str):
         response = None
@@ -138,7 +139,7 @@ class SuperchatArchiver:
             return None
 
     async def async_get_video_info(self,video_ID:str):
-        self.api_points_used += 1.0
+        self.api_points_log.append((1.0,datetime.now(tz=pytz.timezone('Europe/Berlin'))))
         api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
         return api_metadata
 
@@ -320,18 +321,33 @@ class SuperchatArchiver:
                     await self.log_output("starting...")
                     while self.running_chat.is_alive() and not self.cancelled:
                         await asyncio.sleep(3)
-                    if type(self.running_chat.exception) is exceptions.InvalidVideoIdException or type(self.running_chat.exception) is exceptions.ChatParseException:
-                        #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
-                        #ChatParseException: No chat found
-                        self.cancelled = True
+                    try:
+                        await self.log_output(str(self.running_chat.exception),20)
+                        await self.log_output(str(type(self.running_chat.exception)),20)
+                        self.running_chat.raise_for_status()
+                    except exceptions.NoContents:
+                        if self.running_chat.member_stream:
+                            self.cancel()
+                            await self.log_output("a member stream detected",30)
+                    except exceptions.InvalidVideoIdException:
+                        self.cancel() #Video ID invalid: Private or Membership vid or deleted. Treat as cancelled
+                    except exceptions.ChatParseException: #ChatParseException: No chat found
+                        await self.log_output("no chat detected/parse error",30)
+                    except Exception as e:
+                        #In case of error, cancel always if member stream detected
+                        if self.running_chat.member_stream:
+                            self.cancel()
+                            await self.log_output("member stream detected",30)
+                        await self.log_output(str(type(e)),30)
+                        await self.log_output(str(e),30)
                     if repeats == 0 and not self.chat_err and not self.cancelled and islive:
                         self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
                     await self.httpclient.aclose()
                     newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
                     if newmetadata is not None:
-                        if newmetadata["live"] in ["upcoming","live"]: #in case the livestream has not ended yet!
-                            await self.log_output(("Error! Chat monitor ended prematurely!",self.running_chat.is_alive()))
+                        if newmetadata["live"] in ["upcoming","live"] and not self.cancelled: #in case the livestream has not ended yet!
+                            await self.log_output(("Error! Chat monitor ended prematurely!",self.running_chat.is_alive()),30)
                             self.chat_err = True
                     else:
                         islive = False
@@ -352,10 +368,10 @@ class SuperchatArchiver:
                             if self.videoinfo["title"] != old_title:
                                 self.videoinfo["old_title"] = old_title
                         else:
-                            await self.log_output(("couldn't retrieve new metadata for",self.videoid,old_title))
+                            await self.log_output(("couldn't retrieve new metadata for",self.videoid,old_title),30)
                     else:
                         islive = False
-                    if self.msg_counter > 0 and not self.chat_err:
+                    if (self.msg_counter+self.total_member_msgs) > 0 and not self.chat_err:
                         had_scs += 1
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
                         self.total_counted_msgs = 0
@@ -453,7 +469,6 @@ class SuperchatArchiver:
                     if c.type == "sponsorMessage":
                         self.total_member_msgs += 1
                         sc_info["member_level"] = c.member_level
-                        #await self.log_output(sc_info)
                     else:
                         self.total_counted_msgs += 1
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
@@ -507,7 +522,6 @@ if __name__ =='__main__':
     keyfile.close()
     loop = asyncio.get_event_loop()
     analysis = SuperchatArchiver(args.yt_vid_id,yt_api_key,args.wordcloud,loop,args.suffix)
-    #logging.basicConfig(level=logging.INFO)
     try:
         loop.run_until_complete(analysis.main())
     except asyncio.CancelledError:
