@@ -289,6 +289,8 @@ class SuperchatArchiver:
         await self.conn.close()
         while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive):
             self.msg_counter = 0
+            self.total_member_msgs = 0
+            self.total_new_members = 0
             self.chat_err = True
             if self.metadata:
                 islive = self.metadata["live"] in ["upcoming","live"]
@@ -375,8 +377,6 @@ class SuperchatArchiver:
                         had_scs += 1
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
                         self.total_counted_msgs = 0
-                        self.total_member_msgs = 0
-                        self.total_new_members = 0
                     self.videoinfo["startedLogAt"] = self.started_at.timestamp()
                     self.videoinfo["retries_of_rerecording"] = repeats
                     await self.update_psql_metadata()
