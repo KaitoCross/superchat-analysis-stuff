@@ -222,10 +222,7 @@ class channel_monitor:
                 self.video_analysis[stream].cancel()
         #self.running = False
         self.logger.log(10,"cancelled logging")
-        points_used_by_analysis = 0.0
-        for stream in self.video_analysis.keys():
-            if self.video_analysis[stream] is not None:
-                points_used_by_analysis += self.video_analysis[stream].api_points_used
+        points_used_by_analysis = self.total_api_points_used()
         pts_used = points_used_by_analysis+self.api_points_used
         self.logger.log(20,"api points used: " + str(pts_used))
         
