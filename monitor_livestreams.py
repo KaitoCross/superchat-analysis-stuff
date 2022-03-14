@@ -123,7 +123,7 @@ class channel_monitor:
                     self.sleep_dur = t_delta.total_seconds()
                     self.reset_used = True
             await self.log_output('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
-            await self.log_output('approx. '+str(total_points_used)+' YouTube points left')
+            await self.log_output('approx. '+str(total_points_used)+' YouTube points used')
             await self.log_output((self.requests_left, "requests left"))
             awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
             await self.log_output('next run at: ' + awake_at.isoformat() + " Berlin Time")
@@ -150,7 +150,7 @@ class channel_monitor:
         time_now = datetime.utcnow().replace(tzinfo=pytz.utc)
         if time_now.hour > w_hour:
             utc_last_day = time_now - timedelta(days=1)
-            last_day = utc_next_day.astimezone(tzinfo_p)
+            last_day = utc_last_day.astimezone(tzinfo_p)
             new_time = last_day.replace(hour=w_hour, minute=0, second=0, microsecond=0)
         else:
             new_time = time_now.replace(hour=w_hour,minute=0, second=0, microsecond=0)
