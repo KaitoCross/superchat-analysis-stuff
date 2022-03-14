@@ -12,8 +12,6 @@ class channel_monitor:
     def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt", loop=None):
         self.running = True
         self.reset_used = False
-        signal.signal(signal.SIGUSR1, self.signal_handler_1)
-        signal.signal(signal.SIGUSR2, self.signal_handler_2)
         self.yt_api_key = "####"
         keyfile = open(keyfilepath, "r")
         self.yt_api_key = keyfile.read()
@@ -50,6 +48,8 @@ class channel_monitor:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGUSR1,lambda signame="SIGUSR1": asyncio.create_task(self.signal_handler_1(signame)))
+        loop.add_signal_handler(signal.SIGUSR2,lambda signame="SIGUSR2": asyncio.create_task(self.signal_handler_2(signame)))
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
         self.sleep_dur = temp.total_seconds() / self.requests_left
@@ -216,17 +216,17 @@ class channel_monitor:
             msg_string = str(logmsg)
         await self.loop.run_in_executor(self.t_pool,self.logger.log,level,msg_string)
 
-    def signal_handler_1(self, sig, frame):
+    async def signal_handler_1(self, sig, frame):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.video_analysis[stream].cancel()
         #self.running = False
-        self.logger.log(10,"cancelled logging")
-        points_used_by_analysis = await self.total_api_points_used()
-        pts_used = points_used_by_analysis+self.api_points_used
+        await self.log_output("cancelled logging")
+        pts_used = await self.total_api_points_used()
+        await self.log_output("youtube api points used: " + str(pts_used))
         self.logger.log(20,"api points used: " + str(pts_used))
         
-    def signal_handler_2(self, sig, frame):
+    async def signal_handler_2(self, sig, frame):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.logger.log(20,str(self.video_analysis[stream]))
