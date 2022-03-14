@@ -88,6 +88,7 @@ class channel_monitor:
                             self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".sc-monitor.txt",logger = self.logger, t_pool = self.t_pool)
                             asyncio.ensure_future(self.video_analysis[stream].main())
                             self.analyzed_streams.append(stream)
+                            await asyncio.sleep(0.100)
                         except ValueError: #for some godforsaken reason, the YouTubeDataApi object throws a ValueError
                             #with a wrong error msg (claiming your API key is "incorrect")
                             #if you exceed your API quota. That's why we do the same in the code above.
@@ -120,6 +121,7 @@ class channel_monitor:
                     resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
                     t_delta = resume_at-time_now
                     self.sleep_dur = t_delta.total_seconds()
+                    self.reset_used = True
             await self.log_output('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
             await self.log_output('approx. '+str(total_points_used)+' YouTube points left')
             await self.log_output((self.requests_left, "requests left"))
@@ -135,19 +137,21 @@ class channel_monitor:
                 self.reset_used = False
 
     async def next_specified_hour_datetime(self,w_hour,tzinfo_p):
-        time_now = datetime.now(tz=tzinfo_p)
+        time_now = datetime.utcnow().replace(tzinfo=pytz.utc)
         if time_now.hour >= w_hour:
-            next_day = time_now+timedelta(days=1)
-            new_time = next_day.replace(hour=w_hour, minute=0, second=1, microsecond=1)
+            utc_next_day = time_now+timedelta(days=1)
+            next_day = utc_next_day.astimezone(tzinfo_p)
+            new_time = next_day.replace(hour=w_hour, minute=0, second=0, microsecond=0)
         else:
-            new_time = time_now.replace(hour=w_hour,minute=0, second=1, microsecond=1)
+            new_time = time_now.replace(hour=w_hour,minute=0, second=0, microsecond=0)
         return new_time
 
     async def last_specified_hour_datetime(self,w_hour,tzinfo_p):
-        time_now = datetime.now(tz=tzinfo_p)
+        time_now = datetime.utcnow().replace(tzinfo=pytz.utc)
         if time_now.hour > w_hour:
-            next_day = time_now - timedelta(days=1)
-            new_time = next_day.replace(hour=w_hour, minute=0, second=0, microsecond=0)
+            utc_last_day = time_now - timedelta(days=1)
+            last_day = utc_next_day.astimezone(tzinfo_p)
+            new_time = last_day.replace(hour=w_hour, minute=0, second=0, microsecond=0)
         else:
             new_time = time_now.replace(hour=w_hour,minute=0, second=0, microsecond=0)
         return new_time
@@ -163,6 +167,21 @@ class channel_monitor:
         old_time = await self.last_specified_hour_datetime(w_hour, tzinfo_p)
         t_delta = time_now - old_time
         return t_delta
+    
+    async def add_day(today):
+        today_utc = today.astimezone(timezone.utc)
+        tz = today.tzinfo
+        tomorrow_utc = today_utc + timedelta(days=1)
+        tomorrow_utc_tz = tomorrow_utc.astimezone(tz)
+        tomorrow_utc_tz = tomorrow_utc_tz.replace(hour=today.hour,
+                                                  minute=today.minute,
+                                                  second=today.second)
+        if tomorrow_utc_tz - today < timedelta(hours = 23):
+            tomorrow_utc_tz += timedelta(days = 1)
+            tomorrow_utc_tz = tomorrow_utc_tz.replace(hour=today.hour,
+                                                  minute=today.minute,
+                                                  second=today.second)
+        return tomorrow_utc_tz
 
     async def reset_timer(self, w_hour = 0, tzinfo_p = pytz.timezone('America/Los_Angeles')):
         time_until_reset = await self.time_until_specified_hour(w_hour,tzinfo_p)
