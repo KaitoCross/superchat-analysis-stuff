@@ -137,10 +137,9 @@ class channel_monitor:
                 self.reset_used = False
 
     async def next_specified_hour_datetime(self,w_hour,tzinfo_p):
-        time_now = datetime.utcnow().replace(tzinfo=pytz.utc)
+        time_now = datetime.now(tz=tzinfo_p)
         if time_now.hour >= w_hour:
-            utc_next_day = time_now+timedelta(days=1)
-            next_day = utc_next_day.astimezone(tzinfo_p)
+            next_day = await self.add_day(time_now)
             new_time = next_day.replace(hour=w_hour, minute=0, second=0, microsecond=0)
         else:
             new_time = time_now.replace(hour=w_hour,minute=0, second=0, microsecond=0)
@@ -168,7 +167,7 @@ class channel_monitor:
         t_delta = time_now - old_time
         return t_delta
     
-    async def add_day(today):
+    async def add_day(self, today):
         today_utc = today.astimezone(timezone.utc)
         tz = today.tzinfo
         tomorrow_utc = today_utc + timedelta(days=1)
