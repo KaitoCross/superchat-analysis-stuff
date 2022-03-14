@@ -216,7 +216,7 @@ class channel_monitor:
             msg_string = str(logmsg)
         await self.loop.run_in_executor(self.t_pool,self.logger.log,level,msg_string)
 
-    async def signal_handler_1(self, sig, frame):
+    async def signal_handler_1(self, sig):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.video_analysis[stream].cancel()
@@ -226,7 +226,7 @@ class channel_monitor:
         await self.log_output("youtube api points used: " + str(pts_used))
         self.logger.log(20,"api points used: " + str(pts_used))
         
-    async def signal_handler_2(self, sig, frame):
+    async def signal_handler_2(self, sig):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.logger.log(20,str(self.video_analysis[stream]))
