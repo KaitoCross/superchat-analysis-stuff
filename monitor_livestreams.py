@@ -109,6 +109,7 @@ class channel_monitor:
                             await self.log_output(str(e),30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
+                            self.api_points_used += await self.video_analysis[stream].pts_used_today()
                             self.video_analysis.pop(stream)
             total_points_used = await self.total_api_points_used()
             #If we somehow used too many API points, calculate waiting time between now an midnight pacific time
