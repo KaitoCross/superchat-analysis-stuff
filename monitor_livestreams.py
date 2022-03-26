@@ -109,7 +109,7 @@ class channel_monitor:
                             await self.log_output(str(e),30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
-                            self.api_points_used += await self.video_analysis[stream].pts_used_today()
+                            self.api_points_used += await self.pts_used_today(video_analysis[stream])
                             self.video_analysis.pop(stream)
             total_points_used = await self.total_api_points_used()
             #If we somehow used too many API points, calculate waiting time between now an midnight pacific time
@@ -215,6 +215,12 @@ class channel_monitor:
             if self.video_analysis[stream] is not None:
                 points_used_by_analysis += sum(i[0] for i in self.video_analysis[stream].api_points_log if i[1] >= compare_time)
         return points_used_by_analysis+self.api_points_used
+    
+    async def pts_used_today(self, stream):
+        points_used_by_analysis = 0.0
+        compare_time = await self.last_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
+        points_used_by_analysis += sum(i[0] for i in stream.api_points_log if i[1] >= compare_time)
+        return points_used_by_analysis
     
     async def log_output(self,logmsg,level = 20):
         msg_string = ""

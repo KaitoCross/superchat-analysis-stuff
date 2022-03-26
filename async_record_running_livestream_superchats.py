@@ -522,11 +522,6 @@ class SuperchatArchiver:
             msg_string = str(logmsg)
         await self.loop.run_in_executor(self.t_pool,self.logger.log,level,msg_string)
         
-    async def pts_used_today(self):
-        points_used_by_analysis = 0.0
-        compare_time = await self.last_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
-        points_used_by_analysis += sum(i[0] for i in self.api_points_log if i[1] >= compare_time)
-        return points_used_by_analysis
     
     def exception_handling(self,loop,context):
         ex_time = datetime.now(timezone.utc)
