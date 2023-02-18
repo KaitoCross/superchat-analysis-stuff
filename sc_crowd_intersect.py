@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-import argparse, os, collections, six, psycopg2, json, datetime
+import argparse, collections, six, psycopg2, json, datetime
 import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import upsetplot as up
-from PIL import Image
 
 class superchat_crowd:
     def __init__(self, channel_ids, mask_img_path = None, targetDir = "./", font=None, logname = "unnamed"):
@@ -39,7 +36,7 @@ class superchat_crowd:
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('channel_ids', metavar='many_channel_ids', type=str, nargs='+',
-                        help='youtube video ID')
+                        help='youtube channel IDs')
     parser.add_argument('--font',action='store', type=str, help='font path', default=None)
     args = parser.parse_args()
     scc = superchat_crowd(args.channel_ids, font = args.font)

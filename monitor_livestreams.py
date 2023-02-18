@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
-from youtube_api import YouTubeDataAPI
-import argparse, time, os, asyncio, pytz, logging, signal, sys, concurrent.futures, traceback, requests
+import argparse, asyncio, pytz, logging, signal, concurrent.futures, requests
 from datetime import datetime, timezone, timedelta
 import aiohttp
 from pytchat import config
@@ -110,6 +109,7 @@ class channel_monitor:
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
                             self.api_points_used += await self.pts_used_today(self.video_analysis[stream])
+                            self.video_analysis[stream] = None
                             self.video_analysis.pop(stream)
             total_points_used = await self.total_api_points_used()
             #If we somehow used too many API points, calculate waiting time between now an midnight pacific time

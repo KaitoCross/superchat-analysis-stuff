@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx, pytchat
+import asyncio, pytz, argparse, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
 from datetime import datetime, timezone, timedelta
-from concurrent.futures import CancelledError
 from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor, config, exceptions)
 from youtube_api import YouTubeDataAPI
 from sc_wordcloud import superchat_wordcloud
@@ -292,17 +291,16 @@ class SuperchatArchiver:
         log_exist_test, filesize, db_retries_had_scs, repeats = await self.already_done(self.conn)
         self.videoinfo["retries_of_rerecording_had_scs"] = db_retries_had_scs
         self.videoinfo["retries_of_rerecording"] = repeats
+        islive = True
         if log_exist_test:
-            await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
-                    "title"] + " already analyzed, skipping. Existing file size: " + str(
-                    filesize) + " bytes")
-            return
+            await self.log_output("{0} - {1} already analyzed, skipping. Existing file size: {2} bytes".format(
+                self.videoinfo["channel"],self.videoinfo["title"],filesize))
+            islive = False
         had_scs = db_retries_had_scs if db_retries_had_scs else 0
         self.msg_counter = 0
         if had_scs >= self.min_successful_attempts:
-            await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
-                    "title"] + " already fully analyzed according to database, skipping")
-        islive = True
+            await self.log_output("{0} - {1} already fully analyzed according to database, skipping".format(
+                self.videoinfo["channel"],self.videoinfo["title"]))
         await self.conn.close()
         while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive):
             self.msg_counter = 0
@@ -398,7 +396,8 @@ class SuperchatArchiver:
                     await self.update_psql_metadata()
                     self.metadata_list.append(self.videoinfo)
                 else:
-                    await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
+                    await self.log_output("{0} is not a broadcast recording or premiere".format(self.videoinfo["title"]))
+                    await self.conn.close()
                     return
             repeats += 1
             await self.log_output((repeats,self.cancelled,had_scs,self.videoinfo["live"]))
@@ -490,6 +489,10 @@ class SuperchatArchiver:
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
                     self.stats.append(amount)
                     self.sc_msgs.add(json.dumps(sc_info))
+                    if sc_currency == '':
+                        print("Empty currency!",sc_currency, c.type, sc_info)
+                        if c.type == "superChat":
+                            print("raw currency",c.amountString)
             self.msg_counter = amount["amount_sc"]
             if self.conn.is_closed():
                 await self.psql_connect()
