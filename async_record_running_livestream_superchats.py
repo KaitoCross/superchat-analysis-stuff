@@ -406,39 +406,40 @@ class SuperchatArchiver:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
         self.running = False
-        await self.log_output("writing to files")
-        proper_sc_list = []
-        unique_currency_donors={}
-        count_scs = 0
-        for msg in self.sc_msgs:
-            msg_loaded = json.loads(msg)
-            if msg_loaded["type"] not in ["newSponsor", "sponsorMessage"]:
-                count_scs += 1
-                donations = self.donors[msg_loaded["userid"]]["donations"].setdefault(msg_loaded["currency"],[0,0])
-                self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][0] = donations[0] + 1 #amount of donations
-                self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][1] = donations[1] + msg_loaded["value"] #total amount of money donated
-                self.unique_donors.setdefault(msg_loaded["currency"], set())
-                self.unique_donors[msg_loaded["currency"]].add(msg_loaded["userid"])
-            proper_sc_list.append(msg_loaded)
-        for currency in self.unique_donors.keys():
-            unique_currency_donors[currency] = len(self.unique_donors[currency])
-        f = open(self.sc_file, "w")
-        f_stats = open(self.stats_file, "w")
-        f.write(json.dumps(proper_sc_list))
-        await self.log_output((len(proper_sc_list), "unique messages written",count_scs,"are superchats"))
-        f.close()
-        self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
-        f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
-        f_stats.close()
-        f_donors = open(self.donor_file,"w")
-        f_donors.write(json.dumps(self.donors))
-        f_donors.close()
-        if self.cancelled:
-            os.rename(f.name, f.name+".cancelled")
-            os.rename(f_stats.name, f_stats.name + ".cancelled")
-            os.rename(f_donors.name, f_donors.name + ".cancelled")
-        if not self.chat_err and self.gen_wc and len(self.sc_msgs) > 0 and repeats >= 1 and not self.cancelled:
-            await self.loop.run_in_executor(self.t_pool, self.generate_wordcloud, proper_sc_list)
+        if not log_exist_test:
+            await self.log_output("writing to files")
+            proper_sc_list = []
+            unique_currency_donors={}
+            count_scs = 0
+            for msg in self.sc_msgs:
+                msg_loaded = json.loads(msg)
+                if msg_loaded["type"] not in ["newSponsor", "sponsorMessage"]:
+                    count_scs += 1
+                    donations = self.donors[msg_loaded["userid"]]["donations"].setdefault(msg_loaded["currency"],[0,0])
+                    self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][0] = donations[0] + 1 #amount of donations
+                    self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][1] = donations[1] + msg_loaded["value"] #total amount of money donated
+                    self.unique_donors.setdefault(msg_loaded["currency"], set())
+                    self.unique_donors[msg_loaded["currency"]].add(msg_loaded["userid"])
+                proper_sc_list.append(msg_loaded)
+            for currency in self.unique_donors.keys():
+                unique_currency_donors[currency] = len(self.unique_donors[currency])
+            f = open(self.sc_file, "w")
+            f_stats = open(self.stats_file, "w")
+            f.write(json.dumps(proper_sc_list))
+            await self.log_output((len(proper_sc_list), "unique messages written",count_scs,"are superchats"))
+            f.close()
+            self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
+            f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
+            f_stats.close()
+            f_donors = open(self.donor_file,"w")
+            f_donors.write(json.dumps(self.donors))
+            f_donors.close()
+            if self.cancelled:
+                os.rename(f.name, f.name+".cancelled")
+                os.rename(f_stats.name, f_stats.name + ".cancelled")
+                os.rename(f_donors.name, f_donors.name + ".cancelled")
+            if not self.chat_err and self.gen_wc and len(self.sc_msgs) > 0 and repeats >= 1 and not self.cancelled:
+                await self.loop.run_in_executor(self.t_pool, self.generate_wordcloud, proper_sc_list)
 
     async def display(self,data,amount):
         if len(data.items) > 0:

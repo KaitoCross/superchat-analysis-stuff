@@ -1,4 +1,4 @@
-{"username": "postgres",
-"password":  "postgres",
+{"username": "superchat",
+"password":  "Sup3rch4tTr4ck3r",
 "database": "superchat_data",
-"host": "localhost"}
+"host": "10.8.0.1"}
