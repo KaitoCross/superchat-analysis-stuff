@@ -211,10 +211,9 @@ class SuperchatArchiver:
         test_file = pathlib.Path(self.sc_file)
         file_has_content = False
         if test_file.is_file():
-            if test_file.stat().st_size > 2:
-                file_has_content = True
-        if successful_sc_recordings >= 2 and file_has_content:
-            return True, test_file.stat().st_size, successful_sc_recordings, repeats
+            file_has_content = test_file.stat().st_size > 2
+        if successful_sc_recordings >= self.min_successful_attempts and file_has_content:
+            return file_has_content, test_file.stat().st_size, successful_sc_recordings, repeats
         else:
             return False, 0, successful_sc_recordings, repeats
 
@@ -292,17 +291,19 @@ class SuperchatArchiver:
         self.videoinfo["retries_of_rerecording_had_scs"] = db_retries_had_scs
         self.videoinfo["retries_of_rerecording"] = repeats
         islive = True
+        already_recorded = False
         if log_exist_test:
             await self.log_output("{0} - {1} already analyzed, skipping. Existing file size: {2} bytes".format(
                 self.videoinfo["channel"],self.videoinfo["title"],filesize))
-            islive = False
+            already_recorded = True
         had_scs = db_retries_had_scs if db_retries_had_scs else 0
         self.msg_counter = 0
         if had_scs >= self.min_successful_attempts:
             await self.log_output("{0} - {1} already fully analyzed according to database, skipping".format(
                 self.videoinfo["channel"],self.videoinfo["title"]))
+            already_recorded = True
         await self.conn.close()
-        while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive):
+        while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive and not already_recorded):
             self.msg_counter = 0
             self.total_member_msgs = 0
             self.total_new_members = 0
@@ -406,7 +407,7 @@ class SuperchatArchiver:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
         self.running = False
-        if not log_exist_test:
+        if not already_recorded:
             await self.log_output("writing to files")
             proper_sc_list = []
             unique_currency_donors={}
