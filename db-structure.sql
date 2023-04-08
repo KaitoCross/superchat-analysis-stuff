@@ -48,7 +48,7 @@ CREATE TABLE messages(
     color bigint,
     CONSTRAINT v_id FOREIGN KEY (video_id) REFERENCES video(video_id),
     constraint c_id FOREIGN KEY (user_id) REFERENCES channel(id),
-    PRIMARY KEY (video_id,user_id,message_txt,time_sent)
+    PRIMARY KEY (chat_id)
 );
 
 CREATE TABLE area(
