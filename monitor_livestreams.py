@@ -97,6 +97,7 @@ class channel_monitor:
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
                             self.api_points_used += await self.pts_used_today(self.video_analysis[stream])
+                            self.video_analysis[stream] = None
                             self.video_analysis.pop(stream)
             total_points_used = await self.total_api_points_used()
             #If we somehow used too many API points, calculate waiting time between now an midnight pacific time
@@ -182,6 +183,7 @@ class channel_monitor:
                                                   minute=today.minute,
                                                   second=today.second)
         return tomorrow_utc_tz
+    
 
     async def reset_timer(self, w_hour = 0, tzinfo_p = pytz.timezone('America/Los_Angeles')):
         time_until_reset = await self.time_until_specified_hour(w_hour,tzinfo_p)
@@ -253,9 +255,6 @@ if __name__ =='__main__':
         keyfilepath = "yt_api_key.txt"
     loop = asyncio.get_event_loop()
     monitor = channel_monitor(chan_ids,args.pts,keyfilepath,loop)
-    #loop.set_debug(True)
-    #logging.getLogger("asyncio").setLevel(logging.INFO)
-    #logging.basicConfig(level=logging.INFO)
     try:
         loop.run_until_complete(monitor.main())
     except asyncio.CancelledError:
