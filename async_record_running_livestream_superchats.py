@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import asyncio, pytz, argparse, time, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx, pytchat
+import asyncio, pytz, argparse, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import CancelledError
 from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor, config, exceptions)
@@ -212,10 +212,9 @@ class SuperchatArchiver:
         test_file = pathlib.Path(self.sc_file)
         file_has_content = False
         if test_file.is_file():
-            if test_file.stat().st_size > 2:
-                file_has_content = True
-        if successful_sc_recordings >= 2 and file_has_content:
-            return True, test_file.stat().st_size, successful_sc_recordings, repeats
+            file_has_content = test_file.stat().st_size > 2
+        if successful_sc_recordings >= self.min_successful_attempts and file_has_content:
+            return file_has_content, test_file.stat().st_size, successful_sc_recordings, repeats
         else:
             return False, 0, successful_sc_recordings, repeats
 
@@ -292,19 +291,20 @@ class SuperchatArchiver:
         log_exist_test, filesize, db_retries_had_scs, repeats = await self.already_done(self.conn)
         self.videoinfo["retries_of_rerecording_had_scs"] = db_retries_had_scs
         self.videoinfo["retries_of_rerecording"] = repeats
+        islive = True
+        already_recorded = False
         if log_exist_test:
-            await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
-                    "title"] + " already analyzed, skipping. Existing file size: " + str(
-                    filesize) + " bytes")
-            return
+            await self.log_output("{0} - {1} already analyzed, skipping. Existing file size: {2} bytes".format(
+                self.videoinfo["channel"],self.videoinfo["title"],filesize))
+            already_recorded = True
         had_scs = db_retries_had_scs if db_retries_had_scs else 0
         self.msg_counter = 0
         if had_scs >= self.min_successful_attempts:
-            await self.log_output(self.videoinfo["channel"] + " - " + self.videoinfo[
-                    "title"] + " already fully analyzed according to database, skipping")
-        islive = True
+            await self.log_output("{0} - {1} already fully analyzed according to database, skipping".format(
+                self.videoinfo["channel"],self.videoinfo["title"]))
+            already_recorded = True
         await self.conn.close()
-        while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive):
+        while (repeats < self.max_retry_attempts and had_scs < self.min_successful_attempts and not self.cancelled and islive and not already_recorded):
             self.msg_counter = 0
             self.total_member_msgs = 0
             self.total_new_members = 0
@@ -398,7 +398,8 @@ class SuperchatArchiver:
                     await self.update_psql_metadata()
                     self.metadata_list.append(self.videoinfo)
                 else:
-                    await self.log_output(self.videoinfo["title"]+" is not a broadcast recording or premiere")
+                    await self.log_output("{0} is not a broadcast recording or premiere".format(self.videoinfo["title"]))
+                    await self.conn.close()
                     return
             repeats += 1
             await self.log_output((repeats,self.cancelled,had_scs,self.videoinfo["live"]))
@@ -407,39 +408,40 @@ class SuperchatArchiver:
                 await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
         self.running = False
-        await self.log_output("writing to files")
-        proper_sc_list = []
-        unique_currency_donors={}
-        count_scs = 0
-        for msg in self.sc_msgs:
-            msg_loaded = json.loads(msg)
-            if msg_loaded["type"] not in ["newSponsor", "sponsorMessage"]:
-                count_scs += 1
-                donations = self.donors[msg_loaded["userid"]]["donations"].setdefault(msg_loaded["currency"],[0,0])
-                self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][0] = donations[0] + 1 #amount of donations
-                self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][1] = donations[1] + msg_loaded["value"] #total amount of money donated
-                self.unique_donors.setdefault(msg_loaded["currency"], set())
-                self.unique_donors[msg_loaded["currency"]].add(msg_loaded["userid"])
-            proper_sc_list.append(msg_loaded)
-        for currency in self.unique_donors.keys():
-            unique_currency_donors[currency] = len(self.unique_donors[currency])
-        f = open(self.sc_file, "w")
-        f_stats = open(self.stats_file, "w")
-        f.write(json.dumps(proper_sc_list))
-        await self.log_output((len(proper_sc_list), "unique messages written",count_scs,"are superchats"))
-        f.close()
-        self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
-        f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
-        f_stats.close()
-        f_donors = open(self.donor_file,"w")
-        f_donors.write(json.dumps(self.donors))
-        f_donors.close()
-        if self.cancelled:
-            os.rename(f.name, f.name+".cancelled")
-            os.rename(f_stats.name, f_stats.name + ".cancelled")
-            os.rename(f_donors.name, f_donors.name + ".cancelled")
-        if not self.chat_err and self.gen_wc and len(self.sc_msgs) > 0 and repeats >= 1 and not self.cancelled:
-            await self.loop.run_in_executor(self.t_pool, self.generate_wordcloud, proper_sc_list)
+        if not already_recorded:
+            await self.log_output("writing to files")
+            proper_sc_list = []
+            unique_currency_donors={}
+            count_scs = 0
+            for msg in self.sc_msgs:
+                msg_loaded = json.loads(msg)
+                if msg_loaded["type"] not in ["newSponsor", "sponsorMessage"]:
+                    count_scs += 1
+                    donations = self.donors[msg_loaded["userid"]]["donations"].setdefault(msg_loaded["currency"],[0,0])
+                    self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][0] = donations[0] + 1 #amount of donations
+                    self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][1] = donations[1] + msg_loaded["value"] #total amount of money donated
+                    self.unique_donors.setdefault(msg_loaded["currency"], set())
+                    self.unique_donors[msg_loaded["currency"]].add(msg_loaded["userid"])
+                proper_sc_list.append(msg_loaded)
+            for currency in self.unique_donors.keys():
+                unique_currency_donors[currency] = len(self.unique_donors[currency])
+            f = open(self.sc_file, "w")
+            f_stats = open(self.stats_file, "w")
+            f.write(json.dumps(proper_sc_list))
+            await self.log_output((len(proper_sc_list), "unique messages written",count_scs,"are superchats"))
+            f.close()
+            self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
+            f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
+            f_stats.close()
+            f_donors = open(self.donor_file,"w")
+            f_donors.write(json.dumps(self.donors))
+            f_donors.close()
+            if self.cancelled:
+                os.rename(f.name, f.name+".cancelled")
+                os.rename(f_stats.name, f_stats.name + ".cancelled")
+                os.rename(f_donors.name, f_donors.name + ".cancelled")
+            if not self.chat_err and self.gen_wc and len(self.sc_msgs) > 0 and repeats >= 1 and not self.cancelled:
+                await self.loop.run_in_executor(self.t_pool, self.generate_wordcloud, proper_sc_list)
 
     async def display(self,data,amount):
         if len(data.items) > 0:
