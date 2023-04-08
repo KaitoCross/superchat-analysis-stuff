@@ -12,8 +12,6 @@ class channel_monitor:
     def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt", loop=None):
         self.running = True
         self.reset_used = False
-        signal.signal(signal.SIGUSR1, self.signal_handler_1)
-        signal.signal(signal.SIGUSR2, self.signal_handler_2)
         self.yt_api_key = "####"
         keyfile = open(keyfilepath, "r")
         self.yt_api_key = keyfile.read()
@@ -50,6 +48,8 @@ class channel_monitor:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGUSR1,lambda signame="SIGUSR1": asyncio.create_task(self.signal_handler_1(signame)))
+        loop.add_signal_handler(signal.SIGUSR2,lambda signame="SIGUSR2": asyncio.create_task(self.signal_handler_2(signame)))
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
         self.sleep_dur = temp.total_seconds() / self.requests_left
@@ -88,6 +88,7 @@ class channel_monitor:
                             self.video_analysis[stream] = SuperchatArchiver(stream,self.yt_api_key, file_suffix=".sc-monitor.txt",logger = self.logger, t_pool = self.t_pool)
                             asyncio.ensure_future(self.video_analysis[stream].main())
                             self.analyzed_streams.append(stream)
+                            await asyncio.sleep(0.100)
                         except ValueError: #for some godforsaken reason, the YouTubeDataApi object throws a ValueError
                             #with a wrong error msg (claiming your API key is "incorrect")
                             #if you exceed your API quota. That's why we do the same in the code above.
@@ -95,6 +96,7 @@ class channel_monitor:
                             await self.log_output("API Quota exceeded!",30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
+                            self.api_points_used += await self.pts_used_today(self.video_analysis[stream])
                             self.video_analysis.pop(stream)
             total_points_used = await self.total_api_points_used()
             #If we somehow used too many API points, calculate waiting time between now an midnight pacific time
@@ -120,8 +122,9 @@ class channel_monitor:
                     resume_at = await self.next_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
                     t_delta = resume_at-time_now
                     self.sleep_dur = t_delta.total_seconds()
+                    self.reset_used = True
             await self.log_output('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
-            await self.log_output('approx. '+str(total_points_used)+' YouTube points left')
+            await self.log_output('approx. '+str(total_points_used)+' YouTube points used')
             await self.log_output((self.requests_left, "requests left"))
             awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
             await self.log_output('next run at: ' + awake_at.isoformat() + " Berlin Time")
@@ -137,17 +140,18 @@ class channel_monitor:
     async def next_specified_hour_datetime(self,w_hour,tzinfo_p):
         time_now = datetime.now(tz=tzinfo_p)
         if time_now.hour >= w_hour:
-            next_day = time_now+timedelta(days=1)
-            new_time = next_day.replace(hour=w_hour, minute=0, second=1, microsecond=1)
+            next_day = await self.add_day(time_now)
+            new_time = next_day.replace(hour=w_hour, minute=0, second=0, microsecond=0)
         else:
-            new_time = time_now.replace(hour=w_hour,minute=0, second=1, microsecond=1)
+            new_time = time_now.replace(hour=w_hour,minute=0, second=0, microsecond=0)
         return new_time
 
     async def last_specified_hour_datetime(self,w_hour,tzinfo_p):
-        time_now = datetime.now(tz=tzinfo_p)
+        time_now = datetime.utcnow().replace(tzinfo=pytz.utc)
         if time_now.hour > w_hour:
-            next_day = time_now - timedelta(days=1)
-            new_time = next_day.replace(hour=w_hour, minute=0, second=0, microsecond=0)
+            utc_last_day = time_now - timedelta(days=1)
+            last_day = utc_last_day.astimezone(tzinfo_p)
+            new_time = last_day.replace(hour=w_hour, minute=0, second=0, microsecond=0)
         else:
             new_time = time_now.replace(hour=w_hour,minute=0, second=0, microsecond=0)
         return new_time
@@ -163,6 +167,21 @@ class channel_monitor:
         old_time = await self.last_specified_hour_datetime(w_hour, tzinfo_p)
         t_delta = time_now - old_time
         return t_delta
+    
+    async def add_day(self, today):
+        today_utc = today.astimezone(timezone.utc)
+        tz = today.tzinfo
+        tomorrow_utc = today_utc + timedelta(days=1)
+        tomorrow_utc_tz = tomorrow_utc.astimezone(tz)
+        tomorrow_utc_tz = tomorrow_utc_tz.replace(hour=today.hour,
+                                                  minute=today.minute,
+                                                  second=today.second)
+        if tomorrow_utc_tz - today < timedelta(hours = 23):
+            tomorrow_utc_tz += timedelta(days = 1)
+            tomorrow_utc_tz = tomorrow_utc_tz.replace(hour=today.hour,
+                                                  minute=today.minute,
+                                                  second=today.second)
+        return tomorrow_utc_tz
 
     async def reset_timer(self, w_hour = 0, tzinfo_p = pytz.timezone('America/Los_Angeles')):
         time_until_reset = await self.time_until_specified_hour(w_hour,tzinfo_p)
@@ -181,6 +200,12 @@ class channel_monitor:
                 points_used_by_analysis += sum(i[0] for i in self.video_analysis[stream].api_points_log if i[1] >= compare_time)
         return points_used_by_analysis+self.api_points_used
     
+    async def pts_used_today(self, stream):
+        points_used_by_analysis = 0.0
+        compare_time = await self.last_specified_hour_datetime(0,pytz.timezone('America/Los_Angeles'))
+        points_used_by_analysis += sum(i[0] for i in stream.api_points_log if i[1] >= compare_time)
+        return points_used_by_analysis
+    
     async def log_output(self,logmsg,level = 20):
         msg_string = ""
         msg_len = len(logmsg)
@@ -197,20 +222,17 @@ class channel_monitor:
             msg_string = str(logmsg)
         await self.loop.run_in_executor(self.t_pool,self.logger.log,level,msg_string)
 
-    def signal_handler_1(self, sig, frame):
+    async def signal_handler_1(self, sig):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.video_analysis[stream].cancel()
         #self.running = False
-        self.logger.log(10,"cancelled logging")
-        points_used_by_analysis = 0.0
-        for stream in self.video_analysis.keys():
-            if self.video_analysis[stream] is not None:
-                points_used_by_analysis += self.video_analysis[stream].api_points_used
-        pts_used = points_used_by_analysis+self.api_points_used
+        await self.log_output("cancelled logging")
+        pts_used = await self.total_api_points_used()
+        await self.log_output("youtube api points used: " + str(pts_used))
         self.logger.log(20,"api points used: " + str(pts_used))
         
-    def signal_handler_2(self, sig, frame):
+    async def signal_handler_2(self, sig):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
                 self.logger.log(20,str(self.video_analysis[stream]))
