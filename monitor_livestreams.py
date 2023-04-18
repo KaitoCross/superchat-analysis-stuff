@@ -182,7 +182,7 @@ class channel_monitor:
         t_delta = time_now - old_time
         return t_delta
     
-    async def add_day(self,today):
+    async def add_day(self, today):
         today_utc = today.astimezone(timezone.utc)
         tz = today.tzinfo
         tomorrow_utc = today_utc + timedelta(days=1)
