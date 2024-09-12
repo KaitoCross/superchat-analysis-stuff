@@ -4,7 +4,6 @@ import asyncio, pytz, argparse, os, json, isodate, pathlib, concurrent.futures, 
 from datetime import datetime, timezone
 from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor, config, exceptions)
 from youtube_api import YouTubeDataAPI
-from visualize.sc_wordcloud import superchat_wordcloud
 from merge_SC_logs_v2 import recount_money
 from decimal import Decimal
 
@@ -81,18 +80,19 @@ class SuperchatArchiver:
                                                       "actualStartTime": None,
                                                       "actualEndTime": None}
                              }
-        self.sc_file = self.channel_id + "/sc_logs/" + self.videoid + ".txt"+self.file_suffix
-        self.donor_file = self.channel_id + "/vid_stats/donors/" + self.videoid + ".txt"+self.file_suffix
-        self.stats_file = self.channel_id + "/vid_stats/" + self.videoid + "_stats.txt"+self.file_suffix
-        pathlib.Path('./' + self.channel_id + '/vid_stats/donors').mkdir(parents=True, exist_ok=True)
-        pathlib.Path('./' + self.channel_id + '/sc_logs').mkdir(parents=True, exist_ok=True)
+        path_prefix = f"txtarchive/{self.channel_id}"
+        self.sc_file = f"{path_prefix}/sc_logs/{self.videoid}.txt{self.file_suffix}"
+        self.donor_file = f"{path_prefix}/vid_stats/donors/{self.videoid}.txt{self.file_suffix}"
+        self.stats_file = f"{path_prefix}/vid_stats/{self.videoid}_stats.txt{self.file_suffix}"
+        pathlib.Path(self.sc_file).parent.mkdir(parents=True, exist_ok=True)
+        pathlib.Path(self.donor_file).parent.mkdir(parents=True, exist_ok=True)
         self.placeholders = 0
         if logger:
             self.logger = logger
         else:
             self.logger = logging.getLogger(__name__)
             self.logger.setLevel(logging.DEBUG)
-            fh = logging.FileHandler('./' + self.channel_id +"/"+self.videoid+'.applog')
+            fh = logging.FileHandler(f'./{self.channel_id}/{self.videoid}.applog')
             fh.setLevel(logging.DEBUG)
             ch = logging.StreamHandler()
             ch.setLevel(logging.INFO)
@@ -102,15 +102,14 @@ class SuperchatArchiver:
             ch.setFormatter(formatter)
             self.logger.addHandler(fh)
             self.logger.addHandler(ch)
-        pgsql_config_file = open("postgres-config.json")
-        self.pgsql_creds = json.load(pgsql_config_file)
-        pgsql_config_file.close()
+        with open("postgres-config.json") as pgsql_config_file:
+            self.pgsql_creds = json.load(pgsql_config_file)
 
     def __str__(self):
-        return "["+self.videoid+"] " + self.videoinfo.get("channel","") + " - " + self.videoinfo.get("title","") + " - Running: "+str(self.running) + " Live: " + self.videoinfo.get("live","")
+        return f"[{self.videoid}] {self.videoinfo.get("channel", "")} - {self.videoinfo.get("title","")} - Running: {self.running} Live: {self.videoinfo.get("live", "")}"
     
     def __repr__(self):
-        return "["+self.videoid+"] " + self.videoinfo.get("channel","") + " - " + self.videoinfo.get("title","") + " - Running: "+str(self.running) + " Live: " + self.videoinfo.get("live","")
+        return f"[{self.videoid}] {self.videoinfo.get("channel", "")} - {self.videoinfo.get("title","")} - Running: {self.running} Live: {self.videoinfo.get("live", "")}"
 
     def get_video_info(self,video_ID:str):
         response = None
@@ -132,7 +131,7 @@ class SuperchatArchiver:
                 for d in response["liveStreamingDetails"].keys():
                     if "Time" in d or "time" in d:
                         api_metadata["liveStreamingDetails"][d] = datetime.strptime(
-                            response["liveStreamingDetails"][d] + " +0000", "%Y-%m-%dT%H:%M:%SZ %z").timestamp()
+                            f"{response["liveStreamingDetails"][d]} +0000", "%Y-%m-%dT%H:%M:%SZ %z").timestamp()
             return api_metadata
 
         except Exception as e:
@@ -325,8 +324,8 @@ class SuperchatArchiver:
                             "VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
                             self.videoid, self.videoinfo["channelId"], self.videoinfo["title"], self.started_at, publishtime)
                     await self.update_psql_metadata()
-                    await self.log_output("Starting Analysis #"+str(repeats+1)+" at: "+self.started_at.isoformat())
-                    await self.log_output("of video " + publishtime.isoformat() + " " +self.videoinfo["channel"]+" - " + self.videoinfo["title"] + " ["+self.videoid+"]")
+                    await self.log_output(f"Starting Analysis #{repeats + 1} at: {self.started_at.isoformat()}")
+                    await self.log_output(f"of video {publishtime.isoformat()} {self.videoinfo["channel"]} - {self.videoinfo["title"]} [{self.videoid}]")
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
                     self.httpclient = httpx.AsyncClient(http2=True)
@@ -404,7 +403,7 @@ class SuperchatArchiver:
             await self.log_output((repeats,self.cancelled,had_scs,self.videoinfo["live"]))
             await self.conn.close()
             if repeats >= 1 and not self.cancelled and had_scs < 2 and islive:
-                await self.log_output("Waiting "+str(self.minutes_wait)+" minutes before re-recording sc-logs")
+                await self.log_output(f"Waiting {self.minutes_wait} minutes before re-recording sc-logs")
                 await asyncio.sleep(self.minutes_wait*60)
         self.running = False
         if not already_recorded:
@@ -427,7 +426,7 @@ class SuperchatArchiver:
             f = open(self.sc_file, "w")
             f_stats = open(self.stats_file, "w")
             f.write(json.dumps(proper_sc_list))
-            await self.log_output((len(proper_sc_list), "unique messages written",count_scs,"are superchats"))
+            await self.log_output(f"{len(proper_sc_list)} unique messages written, {count_scs} are superchats")
             f.close()
             self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
             f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
@@ -504,10 +503,14 @@ class SuperchatArchiver:
                 await self.insert_messages.executemany(messages)
             end = datetime.now(timezone.utc)
             await self.log_output(
-                self.videoinfo["channel"] + " " + self.videoinfo["title"] + " " + data.items[-1].elapsedTime + " " +
-                str(self.msg_counter) + "/"+str(self.total_counted_msgs) + " superchats, "+str(self.total_new_members)+" new members, "+str(self.total_member_msgs)+" member anniversary scs took "+ str((end-start).total_seconds()*1000)+" ms, placeholders: " + str(self.placeholders))
+                f"{self.videoinfo["channel"]} {self.videoinfo["title"]} {data.items[-1].elapsedTime} "
+                f"{self.msg_counter}/{self.total_counted_msgs} superchats, "
+                f"{self.total_new_members} new members, "
+                f"{self.total_member_msgs} member anniversary scs took {(end - start).total_seconds() * 1000} ms, "
+                f"placeholders: {self.placeholders}")
 
     def generate_wordcloud(self,log):
+        from visualize.sc_wordcloud import superchat_wordcloud
         wordcloudmake = superchat_wordcloud(log, logname=self.videoid)
         wordcloudmake.generate()
 
