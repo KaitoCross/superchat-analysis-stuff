@@ -491,6 +491,10 @@ class SuperchatArchiver:
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
                     self.stats.append(amount)
                     self.sc_msgs.add(json.dumps(sc_info))
+                    if sc_currency == '':
+                        print("Empty currency!",sc_currency, c.type, sc_info)
+                        if c.type == "superChat":
+                            print("raw currency",c.amountString)
             self.msg_counter = amount["amount_sc"]
             if self.conn.is_closed():
                 await self.psql_connect()

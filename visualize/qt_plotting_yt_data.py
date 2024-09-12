@@ -5,14 +5,14 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import QColor, QBrush
 from datetime import *
 import numpy as np
+import pandas as pd
 import matplotlib.dates as mdates
 import matplotlib.ticker as plticker
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.colors
 import matplotlib.patheffects as path_effects
-
-
+import seaborn as sns
 # using code from https://stackoverflow.com/questions/43947318/plotting-matplotlib-figure-inside-qwidget-using-qt-designer-form-and-pyqt5
 
 class MyApp(QMainWindow, ui_design.Ui_MainWindow):
@@ -29,11 +29,11 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.curr = {
                 "North America": ["USD","CAD","MXN"],
                 "South America": ["ARS","BOB","BRL","CLP","COP","CRC","DOP","GTQ","HNL","NIO","PEN","PYG","UYU"],
-                "Europe": ["BAM","BGN","BYN","CHF","CZK","DKK","EUR","GBP","HRK","HUF","ILS","ISK","NOK","PLN","RON","RSD","RUB","SEK","TRY"],
-                "Africa": ["ZAR","EGP"],
-                "Asia": ["AED","HKD","INR","JOD","JPY","KRW","MYR","PHP","QAR","SAR","SGD","TWD"],
+                "Europe": ["BAM","BGN","BYN","CHF","CZK","DKK","EUR","GBP","HRK","HUF","ILS","ISK","NOK","PLN","RON","RSD","RUB","SEK","TRY","MKD"],
+                "Africa": ["ZAR","EGP","NGN","DZD","KES","UGX","MAD"],
+                "Asia": ["AED","IDR","HKD","INR","JOD","JPY","KRW","MYR","PHP","QAR","SAR","SGD","TWD"],
                 "Oceania": ["AUD","NZD"]}
-        self.pgsql_config_file = open("../record/postgres-config-qt.json")
+        self.pgsql_config_file = open("postgres-config-qt.json")
         self.pgsql_creds = json.load(self.pgsql_config_file)
         self.sc_model = MySqlModel()
         self.populate_widgets()
@@ -45,8 +45,8 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         endTime.setOffsetFromUtc(0)
         id_list = self.get_checked_chans()
         namelist = self.get_checked_chans(False)
-        #print(namelist)
-        namelist.sort()
+        id_name = list(zip(id_list,namelist))
+        id_name_list = sorted(id_name, key=lambda row: (row[1]))
         self.color_dict = self.getcolors(id_list)
         self.color_dict["Europe"] = (0.0,0.0,1.0)
         self.color_dict["North America"] = (1.0,0.0,0.0)
@@ -56,8 +56,8 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.color_dict["South America"] = (1.0,165/255.0,0.0)
         self.plot_superchat_timing(startTime,endTime)
         stream_dict = {}
-        for name in namelist:
-            stream_dict[name] = (self.get_stream_sched(startTime,endTime,name))
+        for idnamecombo in id_name_list:
+            stream_dict[idnamecombo[1]] = (self.get_stream_sched(startTime,endTime,idnamecombo[0]))
         heatmap_data, heatmap_sums, streamer_heatmap = self.get_heatmap_data(stream_dict)
         time_dict, coord_dict, area_sums = self.get_supa_time(startTime,endTime)
         self.plot_timetable(stream_dict,startTime,endTime)
@@ -66,7 +66,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.plot_area_donor_timing(area_sums)
         self.plot_bar_area_donor_timing(self.don_dist_wid,area_sums)
         self.plot_area_donor_per_streamhour(area_sums,heatmap_data)
-        tz_friend = self.timezone_friendliness(streamer_heatmap)
+        tz_friend = self.timezone_friendliness(streamer_heatmap,startTime.toPyDateTime())
         self.fill_tz_friend_tbl(tz_friend)
         return
     
@@ -353,26 +353,19 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.db.close()
         return color_dict
     
-    def get_stream_sched(self,startTime,endTime,name):
+    def get_stream_sched(self,startTime,endTime,id):
         stream_list = []
-        stream_list = stream_list + self.get_past_schedule(startTime,endTime,name)
+        stream_list = stream_list + self.get_past_schedule(startTime,endTime,id)
         stream_list_new = []
         for stream in stream_list:
                 stream_list_new = stream_list_new + self.check_midnight(stream[0],stream[1])
         return stream_list_new
     
-    def get_past_schedule(self,startTime,endTime,chan_name="None"):
-        #names = "("
-        #for n in namelist:
-        #    names = names + "'"+n.replace("'","''")+"',"
-        #if len(names) <= 1:
-        #    names = names + "'None')"
-        #else:
-        #    names = names[:-1] + ")"
+    def get_past_schedule(self,startTime,endTime,chan_id="None"):
         self.db.open()
         query = QSqlQuery()
-        query.prepare("select actualstarttime AT TIME ZONE 'UTC', length, scheduledStartTime AT TIME ZONE 'UTC', endedLogAt AT TIME ZONE 'UTC', actualendtime AT TIME ZONE 'UTC', video_id from video inner join channel c on c.id = channel_id where c.name = :name and ((actualstarttime >= :start and actualstarttime < :end) or (scheduledStartTime >= :start and scheduledStartTime < :end))")
-        query.bindValue(":name",chan_name)
+        query.prepare("select actualstarttime AT TIME ZONE 'UTC', length, scheduledStartTime AT TIME ZONE 'UTC', endedLogAt AT TIME ZONE 'UTC', actualendtime AT TIME ZONE 'UTC', video_id from video v inner join channel c on c.id = channel_id where (v.membership is null or not v.membership) and c.id = :id and ((actualstarttime >= :start and actualstarttime < :end) or (scheduledStartTime >= :start and scheduledStartTime < :end))")
+        query.bindValue(":id",chan_id)
         query.bindValue(":start",startTime)
         query.bindValue(":end",endTime)
         query.exec_()
@@ -404,7 +397,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                 if actualEndTime:
                     end_time = actualEndTime
                 duration = end_time - starttime
-                #print("#",starttime,duration,end_time,vid)
+                print("#",starttime,duration,end_time,vid)
                 if end_time < starttime:
                     starttime = end_time - unknowndur
                     duration = unknowndur
@@ -477,7 +470,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         currencylist = self.get_checked_currencies()
         currencies = json.dumps(currencylist).replace("[","(").replace("]",")").replace('"',"'")
         self.db.open()
-        customquery = "select (select name from chan_names where id = user_id and time_discovered <= time_sent order by time_discovered desc limit 1) as username, '#' || lpad(to_hex(messages.color-4278190080),6,'0') as sc_color, value, currency, message_txt, time_sent from messages inner join channel c on user_id = c.id where video_id = '"+video_id+"' and currency in " + currencies + " order by time_sent"
+        customquery = "select (select name from chan_names where id = user_id and time_discovered <= time_sent order by time_discovered desc limit 1) as username, '#' || lpad(to_hex(messages.color-4278190080),6,'0') as sc_color, value, currency, message_txt, time_sent AT TIME ZONE 'UTC' from messages inner join channel c on user_id = c.id where video_id = '"+video_id+"' and currency in " + currencies + " order by time_sent"
         #query = QSqlQuery()
         #test = query.prepare("select video_id, c.name, message_txt, '#' || lpad(to_hex(messages.color-4278190080),6,'0') as sc_color, value, currency, time_sent from messages inner join channel c on user_id = c.id where video_id = :vid order by time_sent")
         #query.bindValue(":vid",video_id)
@@ -564,8 +557,8 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
         self.db.close()
         return time_dict, coord_dict, area_sums
     
-    def timezone_friendliness(self,streamer_heatmap):
-        friend_time = self.generate_friendliness_mtx()
+    def timezone_friendliness(self,streamer_heatmap,ref_date):
+        friend_time = self.generate_friendliness_mtx(ref_date)
         friendlyindex = {}
         for streamer, heatmap in streamer_heatmap.items():
             shaved_map = np.delete(heatmap,[7,8,9],0)
@@ -576,15 +569,15 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                 friendlyperc = friendlyhrs / streamedhrs
                 timezone_friend[tz] = friendlyperc
             friendlyindex[streamer] = timezone_friend
-        print(friendlyindex)
+        #print(friendlyindex)
         return friendlyindex
     
-    def generate_friendliness_mtx(self):
+    def generate_friendliness_mtx(self,ref_date):
         timezones = [pytz.timezone("Asia/Tokyo"),pytz.timezone("Asia/Jakarta"),pytz.timezone("Europe/Moscow"),pytz.timezone("Europe/Berlin"),pytz.timezone("US/Eastern"),pytz.timezone("US/Pacific")]
         friendly_timeframes = {}
         for zone in timezones:
-            watch_start = [zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=18)),zone.localize(datetime(2000,1,1,hour=14)),zone.localize(datetime(2000,1,1,hour=14))]
-            watch_end = [zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=0)),zone.localize(datetime(2000,1,2,hour=2)),zone.localize(datetime(2000,1,2,hour=2)),zone.localize(datetime(2000,1,2,hour=0))]
+            watch_start = [zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day,hour=18)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day,hour=18)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day,hour=18)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day,hour=18)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day,hour=18)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day,hour=14)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day,hour=14))]
+            watch_end = [zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day+1,hour=0)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day+1,hour=0)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day+1,hour=0)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day+1,hour=0)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day+1,hour=2)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day+1,hour=2)),zone.localize(datetime(ref_date.year,ref_date.month,ref_date.day+1,hour=0))]
             timeframe = np.zeros((7,24))
             days_p = 0
             for start, end in zip(watch_start, watch_end):

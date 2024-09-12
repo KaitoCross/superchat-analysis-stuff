@@ -11,13 +11,13 @@ class superchat_wordcloud:
     def __init__(self, video_id, mask_img_path = None, targetDir = "./", font=None, logname = "unnamed"):
         self.font = font
         self.video_id = video_id
-        self.stopwords_file = open("stopwords.txt", "r")
+        self.stopwords_file = open("stopwords.txt","r")
         if mask_img_path and mask_img_path != "None":
             self.mask_img = Image.open(mask_img_path)
         else:
             self.mask_img = None
         self.target_dir = targetDir
-        self.pgsql_config_file = open("../record/postgres-config-qt.json")
+        self.pgsql_config_file = open("postgres-config-qt.json")
         self.pgsql_creds = json.load(self.pgsql_config_file)
         
     def iterable(self,arg):

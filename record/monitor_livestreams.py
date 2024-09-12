@@ -6,16 +6,21 @@ from aiohttp_requests import requests
 from pytchat import config
 
 class channel_monitor:
-    def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt", loop=None):
+    def __init__(self,chan_file_path,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt", loop=None):
         self.running = True
         self.reset_used = False
         self.yt_api_key = "####"
-        keyfile = open(keyfilepath, "r")
-        self.yt_api_key = keyfile.read()
-        keyfile.close()
+        with open(keyfilepath, "r") as keyfile:
+            self.yt_api_key = keyfile.read()
         self.api_points_used = api_pts_used
         self.video_analysis = {}
-        self.chan_ids = chan_list
+        with open(chan_file_path, "r") as chan_file:
+            self.chan_ids = {line.rstrip() for line in chan_file}
+        self.config_files = {'yt_key': keyfilepath,
+                            #'holodex': holodex_keyfilepath,
+                            'channels': chan_file_path}
+        max_watched_channels = len(self.chan_ids)
+        print(f'# of channels bein watched: {max_watched_channels}')
         self.running_streams = []
         self.analyzed_streams = []
         self.api_points = 10000.0 #available API points
@@ -26,6 +31,7 @@ class channel_monitor:
         self.requests_left = math.floor((self.api_points-self.api_points_used) / (self.max_watched_channels*self.cost_per_request))
         #Calculate how long I have to wait for the next search request - trying not to exceed the 24h API usage limits
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
+        self.min_sleep = 300.0
         self.setup_logging()
         self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=300)
         self.loop = loop
@@ -33,7 +39,7 @@ class channel_monitor:
     def setup_logging(self):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
-        fh = logging.handlers.TimedRotatingFileHandler("livestream_monitor.debuglog", when='midnight', utc=True, backupCount=183)
+        fh = logging.handlers.TimedRotatingFileHandler("logs/livestream_monitor.debuglog", when='midnight', utc=True, backupCount=183)
         fh.setLevel(logging.DEBUG)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -48,11 +54,12 @@ class channel_monitor:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGHUP,lambda signame="SIGHUP": asyncio.create_task(self.reload_config(signame)))
         loop.add_signal_handler(signal.SIGUSR1,lambda signame="SIGUSR1": asyncio.create_task(self.signal_handler_1(signame)))
         loop.add_signal_handler(signal.SIGUSR2,lambda signame="SIGUSR2": asyncio.create_task(self.signal_handler_2(signame)))
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
-        self.sleep_dur = temp.total_seconds() / self.requests_left
+        self.sleep_dur = max(temp.total_seconds() / self.requests_left,self.min_sleep)
         while self.running:
             self.running_streams.clear()
             try:
@@ -94,6 +101,10 @@ class channel_monitor:
                             #if you exceed your API quota. That's why we do the same in the code above.
                             self.api_points_used = 10000.0
                             await self.log_output("API Quota exceeded!",30)
+                            break
+                        except requests.exceptions.ConnectionError as e:
+                            await self.log_output("Connection error, retrying with next scan! Video ID: "+stream,30)
+                            await self.log_output(str(e),30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
                             self.api_points_used += await self.pts_used_today(self.video_analysis[stream])
@@ -113,10 +124,10 @@ class channel_monitor:
                 # Calculate how long I have to wait for the next search request
                 # trying not to exceed the 24h API usage limits while also accounting for time already passed since last
                 # API point reset (which happens at midnight pacific time)
-                self.requests_left = math.floor((self.api_points - self.api_points_used) / (self.max_watched_channels * self.cost_per_request))
+                self.requests_left = await self.calc_requests_left()
                 if self.requests_left > 0:
                     temp = await self.time_until_specified_hour(0,pytz.timezone('America/Los_Angeles'))
-                    self.sleep_dur = temp.total_seconds()/self.requests_left
+                    self.sleep_dur = max(temp.total_seconds()/self.requests_left,self.min_sleep)
                     resume_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))+timedelta(seconds=self.sleep_dur)
                 else:
                     time_now = datetime.now(tz=pytz.timezone('America/Los_Angeles'))
@@ -124,8 +135,8 @@ class channel_monitor:
                     t_delta = resume_at-time_now
                     self.sleep_dur = t_delta.total_seconds()
                     self.reset_used = True
-            await self.log_output('sleeping again for ' + str(self.sleep_dur/60) + ' minutes')
-            await self.log_output('approx. '+str(total_points_used)+' YouTube points used')
+            await self.log_output(f'sleeping again for {self.sleep_dur / 60} minutes')
+            await self.log_output(f'approx. {total_points_used} YouTube points used')
             await self.log_output((self.requests_left, "requests left"))
             awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
             await self.log_output('next run at: ' + awake_at.isoformat() + " Berlin Time")
@@ -133,8 +144,7 @@ class channel_monitor:
             #When midnight passes, do this API point reset
             if self.reset_used:
                 self.api_points_used = 0
-                self.requests_left = math.floor(
-                    (self.api_points - self.api_points_used) / (self.max_watched_channels * self.cost_per_request))
+                self.requests_left = await self.calc_requests_left()
                 await self.log_output('used points reset at ' + datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat() + " Berlin time")
                 self.reset_used = False
 
@@ -224,6 +234,9 @@ class channel_monitor:
             msg_string = str(logmsg)
         await self.loop.run_in_executor(self.t_pool,self.logger.log,level,msg_string)
 
+    async def calc_requests_left(self):
+        return math.floor((self.api_points-self.api_points_used) / self.cost_per_request)
+
     async def signal_handler_1(self, sig):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
@@ -231,30 +244,39 @@ class channel_monitor:
         #self.running = False
         await self.log_output("cancelled logging")
         pts_used = await self.total_api_points_used()
-        await self.log_output("youtube api points used: " + str(pts_used))
-        self.logger.log(20,"api points used: " + str(pts_used))
+        await self.log_output(f"youtube api points used: {pts_used}")
+        self.logger.log(20,f"api points used: {pts_used}")
         
     async def signal_handler_2(self, sig):
         for stream in self.video_analysis:
             if self.video_analysis[stream]:
-                self.logger.log(20,str(self.video_analysis[stream]))
+                await self.log_output(str(self.video_analysis[stream]))
+
+    async def reload_config(self, sig):
+        await self.log_output('reloading configuration')
+        with open(self.config_files['yt_key'], "r") as keyfile:
+            self.yt_api_key = keyfile.read()
+        #with open(self.config_files['holodex'],"r") as keyfile:
+            #self.holodex_key = keyfile.read().replace("\n", "")
+        with open(self.config_files['channels'], "r") as chan_file:
+            self.chan_ids = {line.rstrip() for line in chan_file}
+        max_watched_channels = len(self.chan_ids)
+        await self.log_output(f'# of channels bein watched: {max_watched_channels}')
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('channel_id', metavar='N', type=str, nargs='+', help='The YouTube channel IDs')
+    parser.add_argument('channel_file', metavar='N', type=str, help='The file containing YouTube channel IDs')
     parser.add_argument('--pts','-p', action='store', type=int, default=0, help='The amout of YouTube API points already used today')
     parser.add_argument('--keyfile','-k', action='store', type=str, default="", help='The file with the API key')
     args = parser.parse_args()
-    chan_ids = args.channel_id
-    max_watched_channels = len(chan_ids)
-    print('# of channels bein watched:',max_watched_channels)
+    chan_file_path = args.channel_file
     keyfilepath = str()
     if args.keyfile:
         keyfilepath = args.keyfile
     else:
         keyfilepath = "yt_api_key.txt"
     loop = asyncio.get_event_loop()
-    monitor = channel_monitor(chan_ids,args.pts,keyfilepath,loop)
+    monitor = channel_monitor(chan_file_path,args.pts,keyfilepath,loop)
     try:
         loop.run_until_complete(monitor.main())
     except asyncio.CancelledError:

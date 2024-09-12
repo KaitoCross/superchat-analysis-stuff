@@ -11,7 +11,7 @@ class superchat_crowd:
         self.font = font
         self.channel_ids = channel_ids
         self.target_dir = targetDir
-        self.pgsql_config_file = open("../record/postgres-config-qt.json")
+        self.pgsql_config_file = open("postgres-config-qt.json")
         self.pgsql_creds = json.load(self.pgsql_config_file)
         
     def iterable(self,arg):
@@ -39,7 +39,7 @@ class superchat_crowd:
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('channel_ids', metavar='many_channel_ids', type=str, nargs='+',
-                        help='youtube video ID')
+                        help='youtube channel IDs')
     parser.add_argument('--font',action='store', type=str, help='font path', default=None)
     args = parser.parse_args()
     scc = superchat_crowd(args.channel_ids, font = args.font)
