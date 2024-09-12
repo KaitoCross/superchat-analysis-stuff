@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-from record.async_record_running_livestream_superchats import SuperchatArchiver
-from record.data_apis.YouTubeDataAPI import YouTubeDataAPI
-from record.data_apis.HolodexDataAPI import HolodexDataAPI
+from async_record_running_livestream_superchats import SuperchatArchiver
+from data_apis.YouTubeDataAPI import YouTubeDataAPI
+from data_apis.HolodexDataAPI import HolodexDataAPI
 import argparse, asyncio, pytz, logging, logging.handlers, signal, concurrent.futures, traceback, requests
 from datetime import datetime, timezone, timedelta
 from pytchat import config
@@ -19,8 +19,8 @@ class channel_monitor:
         self.video_analysis = {}
         max_watched_channels = len(self.chan_ids)
         self.reset_tz = pytz.timezone('America/Los_Angeles')
-        self.yt_api = YouTubeDataAPI(self.yt_api_key, max_watched_channels, self.reset_tz, self.log_output)
-        self.holodex_api = HolodexDataAPI(self.holo_api_key, max_watched_channels, self.reset_tz, self.log_output)
+        self.yt_api = YouTubeDataAPI(self.yt_api_key, max_watched_channels, self.reset_tz, self.log_output, api_pts_used)
+        self.holodex_api = HolodexDataAPI(self.holo_api_key, max_watched_channels, self.reset_tz, self.log_output, holo_api_pts_used)
         self.primary_api = self.holodex_api if self.holodex_mode else self.yt_api
         print(f'# of channels bein watched: {max_watched_channels}')
         self.running_streams = []

@@ -101,7 +101,7 @@ class VideoMetaAPIBase(object):
 
     async def reset_pts(self):
         self._points_used = 0
-        await self._log(f'used points reset at {datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()} Berlin time')
+        await self._log(f"used points reset at {datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()} Berlin time")
 
     async def reset_timer(self, w_hour = 0):
         time_until_reset = self.time_until_specified_hour(w_hour,self._timezone)

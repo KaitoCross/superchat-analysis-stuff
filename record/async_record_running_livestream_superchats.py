@@ -106,10 +106,10 @@ class SuperchatArchiver:
             self.pgsql_creds = json.load(pgsql_config_file)
 
     def __str__(self):
-        return f"[{self.videoid}] {self.videoinfo.get("channel", "")} - {self.videoinfo.get("title","")} - Running: {self.running} Live: {self.videoinfo.get("live", "")}"
+        return f'[{self.videoid}] {self.videoinfo.get("channel", "")} - {self.videoinfo.get("title","")} - Running: {self.running} Live: {self.videoinfo.get("live", "")}'
     
     def __repr__(self):
-        return f"[{self.videoid}] {self.videoinfo.get("channel", "")} - {self.videoinfo.get("title","")} - Running: {self.running} Live: {self.videoinfo.get("live", "")}"
+        return f'[{self.videoid}] {self.videoinfo.get("channel", "")} - {self.videoinfo.get("title","")} - Running: {self.running} Live: {self.videoinfo.get("live", "")}'
 
     def get_video_info(self,video_ID:str):
         response = None
@@ -131,7 +131,7 @@ class SuperchatArchiver:
                 for d in response["liveStreamingDetails"].keys():
                     if "Time" in d or "time" in d:
                         api_metadata["liveStreamingDetails"][d] = datetime.strptime(
-                            f"{response["liveStreamingDetails"][d]} +0000", "%Y-%m-%dT%H:%M:%SZ %z").timestamp()
+                            f'{response["liveStreamingDetails"][d]} +0000', "%Y-%m-%dT%H:%M:%SZ %z").timestamp()
             return api_metadata
 
         except Exception as e:
@@ -325,7 +325,7 @@ class SuperchatArchiver:
                             self.videoid, self.videoinfo["channelId"], self.videoinfo["title"], self.started_at, publishtime)
                     await self.update_psql_metadata()
                     await self.log_output(f"Starting Analysis #{repeats + 1} at: {self.started_at.isoformat()}")
-                    await self.log_output(f"of video {publishtime.isoformat()} {self.videoinfo["channel"]} - {self.videoinfo["title"]} [{self.videoid}]")
+                    await self.log_output(f'of video {publishtime.isoformat()} {self.videoinfo["channel"]} - {self.videoinfo["title"]} [{self.videoid}]')
                     if repeats >= 1:
                         await self.log_output("Recording the YouTube-archived chat after livestream finished")
                     self.httpclient = httpx.AsyncClient(http2=True)
@@ -503,7 +503,7 @@ class SuperchatArchiver:
                 await self.insert_messages.executemany(messages)
             end = datetime.now(timezone.utc)
             await self.log_output(
-                f"{self.videoinfo["channel"]} {self.videoinfo["title"]} {data.items[-1].elapsedTime} "
+                f'{self.videoinfo["channel"]} {self.videoinfo["title"]} {data.items[-1].elapsedTime} '
                 f"{self.msg_counter}/{self.total_counted_msgs} superchats, "
                 f"{self.total_new_members} new members, "
                 f"{self.total_member_msgs} member anniversary scs took {(end - start).total_seconds() * 1000} ms, "
