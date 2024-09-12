@@ -30,7 +30,7 @@ class VideoMetaAPIBase(object):
         self._api_key = key
 
     def search_requests_left(self):
-        return math.floor((self._points - self._points_used) / (self.chan_nrs * self._cost_per_search_request))
+        return math.floor((self._points - self.points_used) / (self.chan_nrs * self._cost_per_search_request))
 
     async def get_live_streams(self, channel_id: str):
         pass
@@ -41,10 +41,10 @@ class VideoMetaAPIBase(object):
     def add_cost(self, cost = 0):
         if cost == 0:
             cost = self._cost_per_search_request
-        self._points_used += cost
+        self.points_used += cost
 
     def mark_all_used(self):
-        self._points_used = copy.copy(self._points)
+        self.points_used = copy.copy(self._points)
 
     def get_sleep_dur(self):
         temp = self.time_until_specified_hour(0, self._timezone)
@@ -65,7 +65,7 @@ class VideoMetaAPIBase(object):
         # If we somehow used too many API points, calculate waiting time between now and midnight pacific time
         reset_used = False
         sleep_dur = None
-        total_pts_used = self._points_used + add_points
+        total_pts_used = self.points_used + add_points
         if self.points_depleted(add_points) or do_reset_sleep:
             sleep_dur, resume_at = await self.get_reset_sleep_dur()
             requests_left = 0
@@ -100,7 +100,7 @@ class VideoMetaAPIBase(object):
         await self._log(f'next run at: {awake_at.isoformat()} Berlin Time')
 
     async def reset_pts(self):
-        self._points_used = 0
+        self.points_used = 0
         await self._log(f"used points reset at {datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()} Berlin time")
 
     async def reset_timer(self, w_hour = 0):

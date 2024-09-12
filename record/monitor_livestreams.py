@@ -50,7 +50,8 @@ class channel_monitor:
         loop.add_signal_handler(signal.SIGHUP,lambda signame="SIGHUP": asyncio.create_task(self.reload_config(signame)))
         loop.add_signal_handler(signal.SIGUSR1,lambda signame="SIGUSR1": asyncio.create_task(self.signal_handler_1(signame)))
         loop.add_signal_handler(signal.SIGUSR2,lambda signame="SIGUSR2": asyncio.create_task(self.signal_handler_2(signame)))
-        asyncio.ensure_future(self.reset_timers()) # midnight reset timer start
+        asyncio.ensure_future(self.yt_api.reset_timer()) # midnight reset timer start
+        asyncio.ensure_future(self.holodex_api.reset_timer())
         self.sleep_dur = self.primary_api.get_sleep_dur()
         while self.running:
             self.running_streams.clear()
@@ -168,10 +169,6 @@ class channel_monitor:
         self.holodex_api.set_api_key(self.holo_api_key)
         max_watched_channels = len(self.chan_ids)
         await self.log_output(f'# of channels bein watched: {max_watched_channels}')
-
-    async def reset_timers(self):
-        await self.yt_api.reset_pts()
-        await self.holodex_api.reset_pts()
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
