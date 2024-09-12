@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 from record.async_record_running_livestream_superchats import SuperchatArchiver
 from record.data_apis.YouTubeDataAPI import YouTubeDataAPI
-import argparse, asyncio, pytz, logging, logging.handlers, signal, concurrent.futures, traceback, math, faulthandler
+from record.data_apis.HolodexDataAPI import HolodexDataAPI
+import argparse, asyncio, pytz, logging, logging.handlers, signal, concurrent.futures, traceback, requests
 from datetime import datetime, timezone, timedelta
-from aiohttp_requests import requests
 from pytchat import config
 
 class channel_monitor:
-    def __init__(self,chan_file_path,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt", loop=None):
+    def __init__(self,chan_file_path, holodex_mode = False, api_pts_used = 0.0, keyfilepath = "yt_api_key.txt",
+                 holo_api_pts_used = 0.0, holo_keyfilepath = "holodex_key.txt", loop=None):
         self.running = True
-        self.yt_api_key = "####"
-        with open(keyfilepath, "r") as keyfile:
-            self.yt_api_key = keyfile.read()
-        self.api_points_used = api_pts_used
-        self.video_analysis = {}
-        with open(chan_file_path, "r") as chan_file:
-            self.chan_ids = {line.rstrip() for line in chan_file}
+        self.holodex_mode = holodex_mode
+        self.yt_api_key = self.holo_api_key = "####"
         self.config_files = {'yt_key': keyfilepath,
-                            #'holodex': holodex_keyfilepath,
+                            'holodex': holo_keyfilepath,
                             'channels': chan_file_path}
+        self.load_config()
+        self.video_analysis = {}
         max_watched_channels = len(self.chan_ids)
         self.reset_tz = pytz.timezone('America/Los_Angeles')
-        self.yt_api = YouTubeDataAPI(self.yt_api_key,max_watched_channels,self.reset_tz,self.log_output)
+        self.yt_api = YouTubeDataAPI(self.yt_api_key, max_watched_channels, self.reset_tz, self.log_output)
+        self.holodex_api = HolodexDataAPI(self.holo_api_key, max_watched_channels, self.reset_tz, self.log_output)
+        self.primary_api = self.holodex_api if self.holodex_mode else self.yt_api
         print(f'# of channels bein watched: {max_watched_channels}')
         self.running_streams = []
         self.analyzed_streams = []
@@ -50,18 +50,18 @@ class channel_monitor:
         loop.add_signal_handler(signal.SIGHUP,lambda signame="SIGHUP": asyncio.create_task(self.reload_config(signame)))
         loop.add_signal_handler(signal.SIGUSR1,lambda signame="SIGUSR1": asyncio.create_task(self.signal_handler_1(signame)))
         loop.add_signal_handler(signal.SIGUSR2,lambda signame="SIGUSR2": asyncio.create_task(self.signal_handler_2(signame)))
-        asyncio.ensure_future(self.yt_api.reset_timer()) # midnight reset timer start
-        self.sleep_dur = self.yt_api.get_sleep_dur()
+        asyncio.ensure_future(self.reset_timers()) # midnight reset timer start
+        self.sleep_dur = self.primary_api.get_sleep_dur()
         while self.running:
             self.running_streams.clear()
-            stream_id_set = await self.yt_api.get_live_streams_multichannel(self.chan_ids)
+            stream_id_set = await self.primary_api.get_live_streams_multichannel(self.chan_ids)
             for stream_id in stream_id_set:
                 self.video_analysis.setdefault(stream_id, None)
                 self.running_streams.append(stream_id)
             await self.log_output(self.video_analysis)
             await self.log_output(list(self.video_analysis.keys()))
-            total_points_used = await self.total_api_points_used()
-            if total_points_used < self.yt_api.points:
+            total_yt_points_used = await self.total_yt_api_points_used()
+            if total_yt_points_used < self.yt_api.points and not self.holodex_api.points_depleted():
                 for stream in list(self.video_analysis.keys()):
                     if self.video_analysis[stream] is None and stream not in self.analyzed_streams: #because YouTube lists past streams as "upcoming" for a while after stream ends
                         try:
@@ -73,17 +73,20 @@ class channel_monitor:
                             #with a wrong error msg (claiming your API key is "incorrect")
                             #if you exceed your API quota. That's why we do the same in the code above.
                             self.yt_api.mark_all_used()
+                            self.holodex_api.mark_all_used()
                             await self.log_output("API Quota exceeded!",30)
                             break
-                        '''except requests.exceptions.ConnectionError as e:
+                        except requests.exceptions.ConnectionError as e:
                             await self.log_output(f"Connection error, retrying with next scan! Video ID: {stream}",30)
-                            await self.log_output(str(e),30)'''
+                            await self.log_output(str(e),30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
-                            self.yt_api.points += await self.pts_used_today(self.video_analysis[stream])
+                            self.yt_api.points += await self.yt_pts_used_today(self.video_analysis[stream])
                             self.video_analysis[stream] = None
                             self.video_analysis.pop(stream)
-            await self.yt_api.sleep_by_points(await self.api_points_used_externally())
+            pts_ext = await self.api_points_used_externally()
+            await self.primary_api.sleep_by_points(pts_ext, self.yt_api.points_depleted(pts_ext) if self.holodex_mode else False,
+                                                   self.yt_api.log_used if self.holodex_mode else None)
 
     async def last_specified_hour_datetime(self,w_hour,tzinfo_p):
         time_now = datetime.now(tz=timezone.utc)
@@ -109,10 +112,10 @@ class channel_monitor:
                 points_used_by_analysis += sum(i[0] for i in self.video_analysis[stream].api_points_log if i[1] >= compare_time)
         return points_used_by_analysis
 
-    async def total_api_points_used(self):
+    async def total_yt_api_points_used(self):
         return await self.api_points_used_externally() + self.yt_api.points_used
     
-    async def pts_used_today(self, stream):
+    async def yt_pts_used_today(self, stream):
         points_used_by_analysis = 0.0
         compare_time = await self.last_specified_hour_datetime(0,self.reset_tz)
         points_used_by_analysis += sum(i[0] for i in stream.api_points_log if i[1] >= compare_time)
@@ -140,7 +143,7 @@ class channel_monitor:
                 self.video_analysis[stream].cancel()
         #self.running = False
         await self.log_output("cancelled logging")
-        pts_used = await self.total_api_points_used()
+        pts_used = await self.total_yt_api_points_used()
         await self.log_output(f"youtube api points used: {pts_used}")
         self.logger.log(20,f"api points used: {pts_used}")
         
@@ -149,28 +152,40 @@ class channel_monitor:
             if self.video_analysis[stream]:
                 await self.log_output(str(self.video_analysis[stream]))
 
-    async def reload_config(self, sig):
-        await self.log_output('reloading configuration')
+    def load_config(self):
         with open(self.config_files['yt_key'], "r") as keyfile:
             self.yt_api_key = keyfile.read()
-            self.yt_api.set_api_key(self.yt_api_key)
-        #with open(self.config_files['holodex'],"r") as keyfile:
-            #self.holodex_key = keyfile.read().replace("\n", "")
+        if self.config_files['holodex']:
+            with open(self.config_files['holodex'],"r") as keyfile:
+                self.holo_api_key = keyfile.read().replace("\n", "")
         with open(self.config_files['channels'], "r") as chan_file:
             self.chan_ids = {line.rstrip() for line in chan_file}
+
+    async def reload_config(self, sig):
+        await self.log_output('reloading configuration')
+        self.load_config()
+        self.yt_api.set_api_key(self.yt_api_key)
+        self.holodex_api.set_api_key(self.holo_api_key)
         max_watched_channels = len(self.chan_ids)
         await self.log_output(f'# of channels bein watched: {max_watched_channels}')
+
+    async def reset_timers(self):
+        await self.yt_api.reset_pts()
+        await self.holodex_api.reset_pts()
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('channel_file', metavar='N', type=str, help='The file containing YouTube channel IDs')
-    parser.add_argument('--pts','-p', action='store', type=int, default=0, help='The amout of YouTube API points already used today')
-    parser.add_argument('--keyfile','-k', action='store', type=str, default="", help='The file with the API key')
+    parser.add_argument('--pts','-p', action='store', type=int, default=0, help='The amount of YouTube API points already used today')
+    parser.add_argument('--keyfile','-k', action='store', type=str, default="yt_api_key.txt", help='The file with the YouTube API key')
+    parser.add_argument('--holo_pts', '-hp', action='store', type=int, default=0, help='The amount of Holodex API points already used today')
+    parser.add_argument('--holo_keyfile', '-hk', action='store', type=str, default="", help='The file with the Holodex API key')
     args = parser.parse_args()
     chan_file_path = args.channel_file
-    keyfilepath = args.keyfile if args.keyfile else "yt_api_key.txt"
+    keyfilepath = args.keyfile
     loop = asyncio.get_event_loop()
-    monitor = channel_monitor(chan_file_path,args.pts,keyfilepath,loop)
+    holodex_mode = bool(args.holo_keyfile)
+    monitor = channel_monitor(chan_file_path,holodex_mode,args.pts,keyfilepath,args.holo_pts,args.holo_keyfile,loop)
     try:
         loop.run_until_complete(monitor.main())
     except asyncio.CancelledError:

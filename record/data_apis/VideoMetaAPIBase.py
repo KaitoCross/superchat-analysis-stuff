@@ -61,12 +61,12 @@ class VideoMetaAPIBase(object):
     def points_depleted(self, add_points = 0):
         pass
 
-    async def sleep_by_points(self, add_points = 0):
+    async def sleep_by_points(self, add_points = 0, do_reset_sleep = False, add_log = None):
         # If we somehow used too many API points, calculate waiting time between now and midnight pacific time
         reset_used = False
         sleep_dur = None
         total_pts_used = self._points_used + add_points
-        if self.points_depleted(add_points):
+        if self.points_depleted(add_points) or do_reset_sleep:
             sleep_dur, resume_at = await self.get_reset_sleep_dur()
             requests_left = 0
             reset_used = True
@@ -82,15 +82,20 @@ class VideoMetaAPIBase(object):
                 sleep_dur, resume_at = await self.get_reset_sleep_dur()
                 reset_used = True
         awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
-        await self.log_sleep(sleep_dur, total_pts_used, awake_at, requests_left)
+        await self.log_sleep(sleep_dur, add_points, awake_at, requests_left)
+        if add_log is not None:
+            await add_log(add_points)
         await asyncio.sleep(sleep_dur)
         if reset_used:
             await self.reset_pts()
         return reset_used, sleep_dur
 
-    async def log_sleep(self, sleep_dur, total_points_used, awake_at, requests_left):
+    async def log_used(self, add_points = 0):
+        pass
+
+    async def log_sleep(self, sleep_dur, add_points, awake_at, requests_left):
         await self._log(f'sleeping again for {sleep_dur / 60} minutes')
-        await self._log(f'approx. {total_points_used} YouTube points used')
+        await self.log_used(add_points)
         await self._log(f"{requests_left} requests left")
         await self._log(f'next run at: {awake_at.isoformat()} Berlin Time')
 

@@ -1,19 +1,20 @@
 from .VideoMetaAPIBase import VideoMetaAPIBase
-from typing import List, Set
+from typing import Set
 from aiohttp_requests import requests
-import traceback, sys
+import traceback
 
 
 class YouTubeDataAPI(VideoMetaAPIBase):
-    def __init__(self, api_key, chans, reset_tz, log_cb):
+    def __init__(self, api_key, chans, reset_tz, log_cb, pts_used = 0):
         super().__init__(api_key,chans,reset_tz,log_cb)
+        self._points_used = pts_used
 
     async def get_live_streams(self, channel_id: str) -> Set:
         # catch only planned streams. Caution! API returns recently finished streams as "upcoming" too!
         streams = set()
         try:
             planstreams_search = await requests.get(
-                f'https://youtube.googleapis.com/youtube/v3/search?part=id&channelId={channel_id}&eventType=live&type=video&key={self._api_key}')
+                f'https://youtube.googleapis.com/youtube/v3/search?part=id&channelId={channel_id}&eventType=upcoming&type=video&key={self._api_key}')
             planstreams_raw_json = await planstreams_search.json()
         except Exception as e:
             self._log(e, 40)
@@ -38,3 +39,6 @@ class YouTubeDataAPI(VideoMetaAPIBase):
 
     def points_depleted(self, add_points = 0):
         return self._points_used + add_points >= (self._points - self._desired_leftover_points)
+
+    async def log_used(self, add_points = 0):
+        await self._log(f'approx. {self._points_used+add_points} YouTube Data API points used')
