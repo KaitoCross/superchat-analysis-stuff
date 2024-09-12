@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
-import argparse, asyncio, pytz, logging, signal, concurrent.futures, requests
+import argparse, asyncio, pytz, logging, logging.handlers, signal, concurrent.futures, requests, aiohttp, math
 from datetime import datetime, timezone, timedelta
-import aiohttp
 from pytchat import config
-import math
 
 class channel_monitor:
     def __init__(self,chan_file_path,yt_api_pts_used = 0.0, yt_keyfilepath = "yt_api_key.txt", holo_api_pts_used = 0.0, holodex_keyfilepath = "holodex_key.txt", loop=None):
@@ -40,9 +38,14 @@ class channel_monitor:
         #Calculate how long I have to wait for the next search request - trying not to exceed the 24h API usage limits
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
         self.min_sleep = 300.0
+        self.setup_logging()
+        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=300)
+        self.loop = loop
+
+    def setup_logging(self):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
-        fh = logging.FileHandler(chan_file_path+"_monitor.debuglog")
+        fh = logging.handlers.TimedRotatingFileHandler("logs/livestream_monitor.debuglog", when='midnight', utc=True, backupCount=183)
         fh.setLevel(logging.DEBUG)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -52,8 +55,6 @@ class channel_monitor:
         ch.setFormatter(formatter)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
-        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=300)
-        self.loop = loop
         
 
     async def main(self):
