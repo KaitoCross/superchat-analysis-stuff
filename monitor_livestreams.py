@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 from async_record_running_livestream_superchats import SuperchatArchiver
 from youtube_api import YouTubeDataAPI
-import argparse, time, os, asyncio, pytz, logging, signal, sys, concurrent.futures, traceback
+import argparse, time, os, asyncio, pytz, logging, logging.handlers, signal, sys, concurrent.futures, traceback, aiohttp, math
 from datetime import datetime, timezone, timedelta
-import aiohttp
 from aiohttp_requests import requests
 from pytchat import config
-import math
 
 class channel_monitor:
     def __init__(self,chan_list,api_pts_used = 0.0, keyfilepath = "yt_api_key.txt", loop=None):
@@ -29,9 +27,14 @@ class channel_monitor:
         self.requests_left = math.floor((self.api_points-self.api_points_used) / (self.max_watched_channels*self.cost_per_request))
         #Calculate how long I have to wait for the next search request - trying not to exceed the 24h API usage limits
         self.sleep_dur = (60.0*60.0*24.0)/self.requests_left
+        self.setup_logging()
+        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=300)
+        self.loop = loop
+
+    def setup_logging(self):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
-        fh = logging.FileHandler(keyfilepath+"_monitor.debuglog")
+        fh = logging.handlers.TimedRotatingFileHandler("livestream_monitor.debuglog", when='midnight', utc=True, backupCount=183)
         fh.setLevel(logging.DEBUG)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -41,8 +44,6 @@ class channel_monitor:
         ch.setFormatter(formatter)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
-        self.t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=300)
-        self.loop = loop
         
 
     async def main(self):
