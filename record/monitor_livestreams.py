@@ -59,7 +59,7 @@ class channel_monitor:
         loop.add_signal_handler(signal.SIGUSR2,lambda signame="SIGUSR2": asyncio.create_task(self.signal_handler_2(signame)))
         asyncio.ensure_future(self.reset_timer()) # midnight reset timer start
         temp = await self.time_until_specified_hour(0, pytz.timezone('America/Los_Angeles'))
-        self.sleep_dur = max(temp.total_seconds() / self.requests_left,self.min_sleep)
+        self.sleep_dur = max(temp.total_seconds() / self.requests_left, self.min_sleep)
         while self.running:
             self.running_streams.clear()
             try:
@@ -67,7 +67,7 @@ class channel_monitor:
                     #catch only planned streams. Caution! API returns recently finished streams as "upcoming" too!
                     try:
                         planstreams_search = await requests.get(
-                            'https://youtube.googleapis.com/youtube/v3/search?part=id&channelId=' + chan_id + '&eventType=upcoming&type=video&key=' + self.yt_api_key)
+                            f'https://youtube.googleapis.com/youtube/v3/search?part=id&channelId={chan_id}&eventType=upcoming&type=video&key={self.yt_api_key}')
                         planstreams_raw_json = await planstreams_search.json()
                     except Exception as e:
                         self.log_output(e,40)
@@ -103,7 +103,7 @@ class channel_monitor:
                             await self.log_output("API Quota exceeded!",30)
                             break
                         except requests.exceptions.ConnectionError as e:
-                            await self.log_output("Connection error, retrying with next scan! Video ID: "+stream,30)
+                            await self.log_output(f"Connection error, retrying with next scan! Video ID: {stream}",30)
                             await self.log_output(str(e),30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
@@ -139,13 +139,13 @@ class channel_monitor:
             await self.log_output(f'approx. {total_points_used} YouTube points used')
             await self.log_output((self.requests_left, "requests left"))
             awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
-            await self.log_output('next run at: ' + awake_at.isoformat() + " Berlin Time")
+            await self.log_output(f'next run at: {awake_at.isoformat()} Berlin Time')
             await asyncio.sleep(self.sleep_dur)
             #When midnight passes, do this API point reset
             if self.reset_used:
                 self.api_points_used = 0
                 self.requests_left = await self.calc_requests_left()
-                await self.log_output('used points reset at ' + datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat() + " Berlin time")
+                await self.log_output(f'used points reset at {datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()} Berlin time')
                 self.reset_used = False
 
     async def next_specified_hour_datetime(self,w_hour,tzinfo_p):
@@ -199,7 +199,7 @@ class channel_monitor:
         time_until_reset = await self.time_until_specified_hour(w_hour,tzinfo_p)
         while True:
             await asyncio.sleep(time_until_reset.total_seconds())
-            await self.log_output(("midnight reset taking place, old points used:",self.api_points_used))
+            await self.log_output(f"midnight reset taking place, old points used: {self.api_points_used}")
             self.api_points_used = 0
             await asyncio.sleep(1)
             time_until_reset = await self.time_until_specified_hour(w_hour, tzinfo_p)
