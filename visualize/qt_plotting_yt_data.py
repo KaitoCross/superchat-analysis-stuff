@@ -5,14 +5,14 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import QColor, QBrush
 from datetime import *
 import numpy as np
-import pandas as pd
 import matplotlib.dates as mdates
 import matplotlib.ticker as plticker
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.colors
 import matplotlib.patheffects as path_effects
-import seaborn as sns
+
+
 # using code from https://stackoverflow.com/questions/43947318/plotting-matplotlib-figure-inside-qwidget-using-qt-designer-form-and-pyqt5
 
 class MyApp(QMainWindow, ui_design.Ui_MainWindow):
@@ -33,7 +33,7 @@ class MyApp(QMainWindow, ui_design.Ui_MainWindow):
                 "Africa": ["ZAR","EGP"],
                 "Asia": ["AED","HKD","INR","JOD","JPY","KRW","MYR","PHP","QAR","SAR","SGD","TWD"],
                 "Oceania": ["AUD","NZD"]}
-        self.pgsql_config_file = open("postgres-config-qt.json")
+        self.pgsql_config_file = open("../record/postgres-config-qt.json")
         self.pgsql_creds = json.load(self.pgsql_config_file)
         self.sc_model = MySqlModel()
         self.populate_widgets()

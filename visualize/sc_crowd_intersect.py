@@ -11,7 +11,7 @@ class superchat_crowd:
         self.font = font
         self.channel_ids = channel_ids
         self.target_dir = targetDir
-        self.pgsql_config_file = open("postgres-config-qt.json")
+        self.pgsql_config_file = open("../record/postgres-config-qt.json")
         self.pgsql_creds = json.load(self.pgsql_config_file)
         
     def iterable(self,arg):

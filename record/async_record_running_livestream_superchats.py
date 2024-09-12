@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import asyncio, pytz, argparse, os, functools, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
-from datetime import datetime, timezone, timedelta
-from concurrent.futures import CancelledError
+import asyncio, pytz, argparse, os, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
+from datetime import datetime, timezone
 from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor, config, exceptions)
 from youtube_api import YouTubeDataAPI
-from sc_wordcloud import superchat_wordcloud
+from visualize.sc_wordcloud import superchat_wordcloud
 from merge_SC_logs_v2 import recount_money
 from decimal import Decimal
 
