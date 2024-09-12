@@ -81,7 +81,7 @@ class channel_monitor:
                             await self.log_output(str(e),30)
                     else:
                         if self.video_analysis[stream] is not None and not self.video_analysis[stream].running and stream not in self.running_streams:
-                            self.yt_api.points += await self.yt_pts_used_today(self.video_analysis[stream])
+                            self.yt_api.points_used += await self.yt_pts_used_today(self.video_analysis[stream])
                             self.video_analysis[stream] = None
                             self.video_analysis.pop(stream)
             pts_ext = await self.api_points_used_externally()

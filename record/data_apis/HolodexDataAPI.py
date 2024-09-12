@@ -5,11 +5,10 @@ import traceback, math, requests, aiohttp
 
 class HolodexDataAPI(VideoMetaAPIBase):
     def __init__(self, api_key, chans, reset_tz, log_cb, pts_used = 0):
-        super().__init__(api_key,chans,reset_tz,log_cb)
+        super().__init__(api_key,chans,reset_tz,log_cb,pts_used)
         self.api_endpoint = "https://holodex.net/api/v2/users/live"
         self._cost_per_search_request = 10.0
         self._points = (24 * 60 / 10) * self._cost_per_search_request
-        self._points_used = pts_used
 
     async def get_live_streams(self, channel_id: str) -> Set:
         pass

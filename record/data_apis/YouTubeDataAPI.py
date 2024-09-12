@@ -6,8 +6,7 @@ import traceback
 
 class YouTubeDataAPI(VideoMetaAPIBase):
     def __init__(self, api_key, chans, reset_tz, log_cb, pts_used = 0):
-        super().__init__(api_key,chans,reset_tz,log_cb)
-        self._points_used = pts_used
+        super().__init__(api_key,chans,reset_tz,log_cb,pts_used)
 
     async def get_live_streams(self, channel_id: str) -> Set:
         # catch only planned streams. Caution! API returns recently finished streams as "upcoming" too!

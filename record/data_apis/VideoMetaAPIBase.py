@@ -2,10 +2,10 @@ import math, pytz, asyncio, copy
 from datetime import datetime, timedelta, timezone
 
 class VideoMetaAPIBase(object):
-    def __init__(self, api_key, chans, reset_tz, log_callback):
+    def __init__(self, api_key, chans, reset_tz, log_callback, pts_used):
         self._api_key = api_key
         self._points = 10000 #available API points
-        self._points_used = 0
+        self._points_used = pts_used
         self._desired_leftover_points = 100 #for safety measure since the SuperchatArchiver objects will use some API points
         self._cost_per_search_request = 100
         self._min_sleep = 300
@@ -22,8 +22,8 @@ class VideoMetaAPIBase(object):
     def points(self):
         return self._points
 
-    @points.setter
-    def points(self, a: int):
+    @points_used.setter
+    def points_used(self, a: int):
         self._points_used = a
 
     def set_api_key(self, key: str):
