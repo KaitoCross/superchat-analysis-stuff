@@ -92,7 +92,7 @@ class SuperchatArchiver:
         else:
             self.logger = logging.getLogger(__name__)
             self.logger.setLevel(logging.DEBUG)
-            fh = logging.FileHandler(f'./{self.channel_id}/{self.videoid}.applog')
+            fh = logging.FileHandler(f'./txtarchive/{self.channel_id}/{self.videoid}.applog')
             fh.setLevel(logging.DEBUG)
             ch = logging.StreamHandler()
             ch.setLevel(logging.INFO)
@@ -450,14 +450,14 @@ class SuperchatArchiver:
             for c in data.items: #data.items contains superchat messages - save them in list while also saving the calculated
                 if c.type == "placeholder":
                     self.placeholders += 1
-                if c.type == "newSponsor":
+                if c.type in ["newSponsor", "giftRedemption"]:
                     sc_datetime = datetime.fromtimestamp(c.timestamp/1000.0,timezone.utc)
                     sc_info = {"type": c.type, "id": c.id, "time":c.timestamp,
                                "userid":c.author.channelId, "member_level": c.member_level, "debugtime":sc_datetime.isoformat()}
                     self.total_new_members += 1
                     self.sc_msgs.add(json.dumps(sc_info))
                 #sums in a list
-                if c.type in ["superChat","superSticker","sponsorMessage"]:
+                if c.type in ["superChat","superSticker","sponsorMessage","giftPurchase"]:
                     if c.currency in self.clean_currency.keys():
                         c.currency = self.clean_currency[c.currency]
                     sc_datetime = datetime.fromtimestamp(c.timestamp/1000.0,timezone.utc)
