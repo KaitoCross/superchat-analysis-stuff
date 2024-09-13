@@ -28,7 +28,7 @@ class SuperchatArchiver:
         self.videoinfo = {}
         self.donors = {}
         self.stats = []
-        self.sc_msgs = set()
+        self.sc_msgs = dict()
         self.sc_logs_list = []
         self.metadata_list = []
         self.gen_wc = gen_WC
@@ -411,16 +411,16 @@ class SuperchatArchiver:
             proper_sc_list = []
             unique_currency_donors={}
             count_scs = 0
-            for msg in self.sc_msgs:
-                msg_loaded = json.loads(msg)
-                if msg_loaded["type"] not in ["newSponsor", "sponsorMessage"]:
+            for c_id, msg in self.sc_msgs.items():
+                msg["id"] = c_id
+                if msg["type"] not in ["newSponsor", "sponsorMessage"]:
                     count_scs += 1
-                    donations = self.donors[msg_loaded["userid"]]["donations"].setdefault(msg_loaded["currency"],[0,0])
-                    self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][0] = donations[0] + 1 #amount of donations
-                    self.donors[msg_loaded["userid"]]["donations"][msg_loaded["currency"]][1] = donations[1] + msg_loaded["value"] #total amount of money donated
-                    self.unique_donors.setdefault(msg_loaded["currency"], set())
-                    self.unique_donors[msg_loaded["currency"]].add(msg_loaded["userid"])
-                proper_sc_list.append(msg_loaded)
+                    donations = self.donors[msg["userid"]]["donations"].setdefault(msg["currency"],[0,0])
+                    self.donors[msg["userid"]]["donations"][msg["currency"]][0] = donations[0] + 1 #amount of donations
+                    self.donors[msg["userid"]]["donations"][msg["currency"]][1] = donations[1] + msg["value"] #total amount of money donated
+                    self.unique_donors.setdefault(msg["currency"], set())
+                    self.unique_donors[msg["currency"]].add(msg["userid"])
+                proper_sc_list.append(msg)
             for currency in self.unique_donors.keys():
                 unique_currency_donors[currency] = len(self.unique_donors[currency])
             f = open(self.sc_file, "w")
@@ -452,10 +452,10 @@ class SuperchatArchiver:
                     self.placeholders += 1
                 if c.type in ["newSponsor", "giftRedemption"]:
                     sc_datetime = datetime.fromtimestamp(c.timestamp/1000.0,timezone.utc)
-                    sc_info = {"type": c.type, "id": c.id, "time":c.timestamp,
+                    sc_info = {"type": c.type, "time":c.timestamp,
                                "userid":c.author.channelId, "member_level": c.member_level, "debugtime":sc_datetime.isoformat()}
                     self.total_new_members += 1
-                    self.sc_msgs.add(json.dumps(sc_info))
+                    self.sc_msgs.setdefault(c.id, sc_info)
                 #sums in a list
                 if c.type in ["superChat","superSticker","sponsorMessage","giftPurchase"]:
                     if c.currency in self.clean_currency.keys():
@@ -479,7 +479,7 @@ class SuperchatArchiver:
                     sc_message = c.message
                     sc_color = c.bgColor
                     sc_currency = c.currency.replace(u'\xa0', '')
-                    sc_info = {"type": c.type, "id": chat_id, "time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
+                    sc_info = {"type": c.type, "time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
                                "hour":sc_hour,"minute":sc_minute, "userid":sc_userid, "message":sc_message,
                                "color":sc_color, "debugtime":sc_datetime.isoformat()}
                     if c.type == "sponsorMessage":
@@ -489,7 +489,7 @@ class SuperchatArchiver:
                         self.total_counted_msgs += 1
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
                     self.stats.append(amount)
-                    self.sc_msgs.add(json.dumps(sc_info))
+                    self.sc_msgs.setdefault(chat_id, sc_info)
                     if sc_currency == '':
                         print("Empty currency!",sc_currency, c.type, sc_info)
                         if c.type == "superChat":
