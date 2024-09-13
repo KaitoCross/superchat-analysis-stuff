@@ -415,6 +415,7 @@ class SuperchatArchiver:
                 msg["id"] = c_id
                 if msg["type"] not in ["newSponsor", "sponsorMessage"]:
                     count_scs += 1
+                    self.donors.setdefault(msg["userid"],{})
                     donations = self.donors[msg["userid"]]["donations"].setdefault(msg["currency"],[0,0])
                     self.donors[msg["userid"]]["donations"][msg["currency"]][0] = donations[0] + 1 #amount of donations
                     self.donors[msg["userid"]]["donations"][msg["currency"]][1] = donations[1] + msg["value"] #total amount of money donated
@@ -485,7 +486,7 @@ class SuperchatArchiver:
                     if c.type == "sponsorMessage":
                         self.total_member_msgs += 1
                         sc_info["member_level"] = c.member_level
-                    else:
+                    elif c.type != "giftPurchase":
                         self.total_counted_msgs += 1
                     messages.append((self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color))
                     self.stats.append(amount)
