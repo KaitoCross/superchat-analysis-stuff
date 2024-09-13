@@ -61,7 +61,7 @@ class VideoMetaAPIBase(object):
     def points_depleted(self, add_points = 0):
         pass
 
-    async def sleep_by_points(self, add_points = 0, do_reset_sleep = False, add_log = None):
+    async def sleep_by_points(self, add_points = 0, do_reset_sleep = False, add_log = None, reset_cb = None):
         # If we somehow used too many API points, calculate waiting time between now and midnight pacific time
         reset_used = False
         sleep_dur = None
@@ -88,6 +88,8 @@ class VideoMetaAPIBase(object):
         await asyncio.sleep(sleep_dur)
         if reset_used:
             await self.reset_pts()
+            if reset_cb is not None:
+                await reset_cb()
         return reset_used, sleep_dur
 
     async def log_used(self, add_points = 0):

@@ -87,7 +87,8 @@ class channel_monitor:
                             self.video_analysis.pop(stream)
             pts_ext = await self.api_points_used_externally()
             await self.primary_api.sleep_by_points(pts_ext, self.yt_api.points_depleted(pts_ext) if self.holodex_mode else False,
-                                                   self.yt_api.log_used if self.holodex_mode else None)
+                                                   self.yt_api.log_used if self.holodex_mode else None,
+                                                   self.yt_api.reset_pts if self.holodex_mode else None)
 
     async def last_specified_hour_datetime(self,w_hour,tzinfo_p):
         time_now = datetime.now(tz=timezone.utc)
