@@ -7,6 +7,7 @@ from youtube_api import YouTubeDataAPI
 from merge_SC_logs_v2 import recount_money
 from decimal import Decimal
 from database.psql_db import PostgresDB
+from database.json_log import JSONLogDB
 
 class SuperchatArchiver:
     def __init__(self,vid_id, api_key, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30, retry_attempts = 72, min_successful_attempts = 2, logger = None, t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)):
@@ -14,7 +15,6 @@ class SuperchatArchiver:
         self.total_new_members = 0
         self.max_retry_attempts = retry_attempts
         self.min_successful_attempts = min_successful_attempts
-        self.file_suffix = file_suffix
         self.minutes_wait = minutes_wait
         self.started_at = None
         self.ended_at = None
@@ -28,13 +28,7 @@ class SuperchatArchiver:
         self.channel_id = ""
         self.metadata = {}
         self.videoinfo = {}
-        self.donors = {}
-        self.stats = []
-        self.sc_msgs = dict()
-        self.sc_logs_list = []
-        self.metadata_list = []
         self.waiting = False
-        self.unique_donors = {}
         self.clean_currency = {"¥": "JPY",
                           "NT$": "TWD",
                           "$": "USD",
@@ -81,12 +75,8 @@ class SuperchatArchiver:
                                                       "actualStartTime": None,
                                                       "actualEndTime": None}
                              }
-        path_prefix = f"txtarchive/{self.channel_id}"
-        self.sc_file = f"{path_prefix}/sc_logs/{self.videoid}.txt{self.file_suffix}"
-        self.donor_file = f"{path_prefix}/vid_stats/donors/{self.videoid}.txt{self.file_suffix}"
-        self.stats_file = f"{path_prefix}/vid_stats/{self.videoid}_stats.txt{self.file_suffix}"
-        pathlib.Path(self.sc_file).parent.mkdir(parents=True, exist_ok=True)
-        pathlib.Path(self.donor_file).parent.mkdir(parents=True, exist_ok=True)
+        self.json_saver = JSONLogDB(self.videoid, self.channel_id, file_suffix)
+        self.json_saver.connect()
         self.placeholders = 0
         if logger:
             self.logger = logger
@@ -121,7 +111,7 @@ class SuperchatArchiver:
                                                    part=["liveStreamingDetails", "contentDetails", "snippet"])
             api_metadata = {"channel": response["snippet"]["channelTitle"],
                             "channel_id": response["snippet"]["channelId"],
-                            "id": video_ID,
+                            "video_id": video_ID,
                             "title": response["snippet"]["title"],
                             "live": response["snippet"]["liveBroadcastContent"],
                             "caught_while": response["snippet"]["liveBroadcastContent"],
@@ -143,9 +133,9 @@ class SuperchatArchiver:
             print(response)
             return None
 
-    async def async_get_video_info(self, video_ID: str):
+    async def async_get_video_info(self, video_id: str):
         self.api_points_log.append((1.0,datetime.now(tz=self.timezone)))
-        api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
+        api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_id)
         return api_metadata
 
     def cancel(self):
@@ -155,12 +145,12 @@ class SuperchatArchiver:
 
     async def already_done(self):
         successful_sc_recordings, repeats = await self.db.get_retries(self.videoid)
-        test_file = pathlib.Path(self.sc_file)
         file_has_content = False
-        if test_file.is_file():
-            file_has_content = test_file.stat().st_size > 2
+        logsize = await self.json_saver.get_size(self.videoid)
+        if await self.json_saver.log_exists(self.videoid):
+            file_has_content = logsize > 2
         if successful_sc_recordings >= self.min_successful_attempts and file_has_content:
-            return file_has_content, test_file.stat().st_size, successful_sc_recordings, repeats
+            return file_has_content, logsize, successful_sc_recordings, repeats
         else:
             return False, 0, successful_sc_recordings, repeats
 
@@ -216,7 +206,7 @@ class SuperchatArchiver:
             self.videoinfo["channel_id"] = self.channel_id
             self.videoinfo["video_id"] = self.videoid
             self.videoPostedAt = self.videoinfo['publishDateTime']
-            self.metadata_list.append(self.videoinfo)
+            await self.json_saver.add_video_metadata(self.videoinfo)
             self.ended_at = old_meta["endedlogat"] if old_meta["endedlogat"] else None
             self.videoinfo["endedLogAt"] = self.ended_at.timestamp() if self.ended_at else None
             if self.metadata:
@@ -253,7 +243,7 @@ class SuperchatArchiver:
                 islive = self.metadata["live"] in ["upcoming","live"]
             while self.chat_err and not self.cancelled:
                 if "liveStreamingDetails" in self.videoinfo.keys() or self.videoinfo["live"] != "none" or repeats >= 1:
-                    self.stats.clear()
+                    self.json_saver.clear_stats()
                     self.chat_err = False
                     self.started_at = datetime.now(tz=self.timezone)
                     publishtime = datetime.fromtimestamp(self.videoPostedAt,timezone.utc)
@@ -334,7 +324,7 @@ class SuperchatArchiver:
                     self.videoinfo["retries_of_rerecording"] = repeats
                     paramdict = {k: v for k, v in self.videoinfo.items() if k != "liveStreamingDetails"}
                     await self.db.update_metadata(**paramdict, **self.videoinfo["liveStreamingDetails"])
-                    self.metadata_list.append(self.videoinfo)
+                    await self.json_saver.add_video_metadata(self.videoinfo)
                 else:
                     await self.log_output("{0} is not a broadcast recording or premiere".format(self.videoinfo["title"]))
                     return
@@ -348,37 +338,12 @@ class SuperchatArchiver:
         self.db_task.cancel()
         if not already_recorded:
             await self.log_output("writing to files")
-            proper_sc_list = []
-            unique_currency_donors={}
-            count_scs = 0
-            for c_id, msg in self.sc_msgs.items():
-                msg["id"] = c_id
-                if msg["type"] not in ["newSponsor", "sponsorMessage", "giftRedemption"]:
-                    count_scs += 1
-                    self.donors.setdefault(msg["userid"],{})
-                    donations = self.donors[msg["userid"]]["donations"].setdefault(msg["currency"],[0,0])
-                    self.donors[msg["userid"]]["donations"][msg["currency"]][0] = donations[0] + 1 #amount of donations
-                    self.donors[msg["userid"]]["donations"][msg["currency"]][1] = donations[1] + msg["value"] #total amount of money donated
-                    self.unique_donors.setdefault(msg["currency"], set())
-                    self.unique_donors[msg["currency"]].add(msg["userid"])
-                proper_sc_list.append(msg)
-            for currency in self.unique_donors.keys():
-                unique_currency_donors[currency] = len(self.unique_donors[currency])
-            f = open(self.sc_file, "w")
-            f_stats = open(self.stats_file, "w")
-            f.write(json.dumps(proper_sc_list))
-            await self.log_output(f"{len(proper_sc_list)} unique messages written, {count_scs} are superchats")
-            f.close()
-            self.stats.append(await self.loop.run_in_executor(self.t_pool, recount_money, proper_sc_list))
-            f_stats.write(json.dumps([self.metadata_list[-1], self.stats[-1], unique_currency_donors]))
-            f_stats.close()
-            f_donors = open(self.donor_file,"w")
-            f_donors.write(json.dumps(self.donors))
-            f_donors.close()
+            stats = await self.loop.run_in_executor(self.t_pool, recount_money, self.json_saver.msgs.values())
+            await self.json_saver.add_stats(stats)
+            msgs_written, count_dono = await self.json_saver.flush()
+            await self.log_output(f"{msgs_written} unique messages written, {count_dono} are donations")
             if self.cancelled:
-                os.rename(f.name, f.name+".cancelled")
-                os.rename(f_stats.name, f_stats.name + ".cancelled")
-                os.rename(f_donors.name, f_donors.name + ".cancelled")
+                await self.json_saver.cancel()
 
     async def display(self,data,amount):
         if len(data.items) > 0:
@@ -388,44 +353,33 @@ class SuperchatArchiver:
                     self.placeholders += 1
                 if c.type in ["newSponsor", "giftRedemption"]:
                     sc_datetime = datetime.fromtimestamp(c.timestamp/1000.0,timezone.utc)
-                    sc_info = {"type": c.type, "time":c.timestamp,
-                               "userid":c.author.channelId, "member_level": c.member_level, "debugtime":sc_datetime.isoformat()}
+                    await self.json_saver.insert_new_mem_msg(c.id, c.type, sc_datetime, c.author.channelId, c.member_level)
                     self.total_new_members += 1
-                    self.sc_msgs.setdefault(c.id, sc_info)
                 #sums in a list
                 if c.type in ["superChat","superSticker","sponsorMessage","giftPurchase"]:
                     if c.currency in self.clean_currency.keys():
                         c.currency = self.clean_currency[c.currency]
                     sc_datetime = datetime.fromtimestamp(c.timestamp/1000.0,timezone.utc)
                     name_used_datetime = start if self.videoinfo["live"] == "none" else sc_datetime
-                    sc_weekday = sc_datetime.weekday()
-                    sc_hour = sc_datetime.hour
-                    sc_minute = sc_datetime.minute
                     sc_user = c.author.name
                     sc_userid = c.author.channelId
                     chat_id = c.id
-                    await self.db.insert_chan_name_hist(sc_userid,sc_user,sc_datetime,name_used_datetime)
-                    await self.db.insert_channel_metadata(sc_userid, sc_user, False)
-                    if sc_userid not in self.donors.keys():
-                        self.donors[sc_userid] = {"names":[sc_user],
-                                                 "donations": {}}
-                    else:
-                        if sc_user not in self.donors[sc_userid]["names"]:
-                            self.donors[sc_userid]["names"].append(sc_user)
                     sc_message = c.message
                     sc_color = c.bgColor
                     sc_currency = c.currency.replace(u'\xa0', '')
-                    sc_info = {"type": c.type, "time":c.timestamp,"currency":sc_currency,"value":c.amountValue,"weekday":sc_weekday,
-                               "hour":sc_hour,"minute":sc_minute, "userid":sc_userid, "message":sc_message,
-                               "color":sc_color, "debugtime":sc_datetime.isoformat()}
+                    await self.db.insert_chan_name_hist(sc_userid,sc_user,sc_datetime,name_used_datetime)
+                    await self.db.insert_channel_metadata(sc_userid, sc_user, False)
+                    await self.json_saver.add_donors(sc_userid, sc_user)
+                    sc_info = {"msg_type": c.type, "time_sent":sc_datetime,"currency":sc_currency,"value":c.amountValue,
+                               "user_id":sc_userid, "message_txt":sc_message, "color":sc_color, "chat_id": chat_id}
                     if c.type == "sponsorMessage":
                         self.total_member_msgs += 1
                         sc_info["member_level"] = c.member_level
                     elif c.type != "giftPurchase":
                         self.total_counted_msgs += 1
                     await self.db.insert_message(self.videoid,chat_id,sc_userid,sc_message,sc_datetime,sc_currency,Decimal(c.amountValue),sc_color)
-                    self.stats.append(amount)
-                    self.sc_msgs.setdefault(chat_id, sc_info)
+                    await self.json_saver.insert_message(self.videoid, **sc_info)
+                    await self.json_saver.add_stats(amount)
                     if sc_currency == '':
                         print("Empty currency!",sc_currency, c.type, sc_info)
                         if c.type == "superChat":

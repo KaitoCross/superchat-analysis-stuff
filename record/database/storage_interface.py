@@ -3,6 +3,12 @@ class StorageInterface(object):
     def __init__(self):
         self._dataqueue = list()
 
+    async def connect(self):
+        pass
+
+    async def disconnect(self):
+        pass
+
     async def update_metadata(self, video_id, channel_id, title, caught_while, live,
                         retries_of_rerecording,
                         retries_of_rerecording_had_scs, length = None, endedLogAt = None, publishDateTime = None, scheduledStartTime = None,
@@ -18,7 +24,7 @@ class StorageInterface(object):
     async def insert_channel_metadata(self, channel_id: str, name: str, tracked = False):
         pass
 
-    async def insert_message(self, video_id, chat_id, user_id, message_txt, time_sent, currency, value, color):
+    async def insert_message(self, video_id, chat_id, user_id, message_txt, time_sent, currency, value, color, **kwargs):
         pass
 
     async def insert_chan_name_hist(self, channel_id, name, time_discovered, time_used):

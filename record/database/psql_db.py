@@ -92,7 +92,7 @@ class PostgresDB(StorageInterface):
             self._chanqueue.append((channel_id, name, tracked))
         #self._data_event.set()
 
-    async def insert_message(self, video_id, chat_id, user_id, message_txt, time_sent, currency, value, color):
+    async def insert_message(self, video_id, chat_id, user_id, message_txt, time_sent, currency, value, color, **kwargs):
         sql = ("INSERT INTO messages(video_id, chat_id, user_id, message_txt, time_sent, currency, value, color) "
                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING")
         self._msgqueue.append((video_id, chat_id, user_id, message_txt, time_sent, currency, value, color))
