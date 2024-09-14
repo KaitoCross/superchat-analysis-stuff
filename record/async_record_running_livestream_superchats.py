@@ -20,7 +20,8 @@ class SuperchatArchiver:
         self.cancelled = False
         self.loop = loop
         self.t_pool = t_pool
-        self.api_points_log = [(1.0,datetime.now(tz=pytz.timezone('Europe/Berlin')))]
+        self.timezone = pytz.timezone('Europe/Berlin')
+        self.api_points_log = [(1.0,datetime.now(tz=self.timezone))]
         self.api = YouTubeDataAPI(api_key) #uses 1p to check key
         self.videoid = vid_id
         self.channel_id = ""
@@ -49,7 +50,7 @@ class SuperchatArchiver:
                           "\u20aa": "ILS"}
 
         self.metadata = self.get_video_info(self.videoid)
-        self.api_points_log.append((1.0,datetime.now(tz=pytz.timezone('Europe/Berlin'))))
+        self.api_points_log.append((1.0,datetime.now(tz=self.timezone)))
         self.total_member_msgs = 0
         self.running = True
         self.running_chat = None
@@ -140,8 +141,8 @@ class SuperchatArchiver:
             print(response)
             return None
 
-    async def async_get_video_info(self,video_ID:str):
-        self.api_points_log.append((1.0,datetime.now(tz=pytz.timezone('Europe/Berlin'))))
+    async def async_get_video_info(self, video_ID: str):
+        self.api_points_log.append((1.0,datetime.now(tz=self.timezone)))
         api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_ID)
         return api_metadata
 
@@ -221,6 +222,7 @@ class SuperchatArchiver:
             self.loop = asyncio.get_running_loop()
         await self.log_output(self.videoinfo,10)
         self.conn = await asyncpg.connect(user = self.pgsql_creds["username"], password = self.pgsql_creds["password"], host = self.pgsql_creds["host"], database = self.pgsql_creds["database"])
+        #fetch old video metadata
         old_meta_row = await self.conn.fetchrow('SELECT c.name, channel_id, title, caught_while, live, old_title, length, createdDateTime, publishDateTime, startedLogAt, endedLogAt, scheduledStartTime, actualStartTime, actualEndTime, retries_of_rerecording, retries_of_rerecording_had_scs, membership FROM video INNER JOIN channel c on channel_id = c.id WHERE video_id = $1', self.videoid)
         old_meta = dict(old_meta_row) if old_meta_row else None
         if old_meta:
@@ -279,13 +281,13 @@ class SuperchatArchiver:
             return
         async with self.conn.transaction():
             if self.channel_id and self.videoinfo["channel"]:
+                #Insert channel metadata, mark as tracking the channel
                 await self.conn.execute("INSERT INTO channel VALUES($1,$2,$3) ON CONFLICT (id) DO UPDATE SET tracked = $3",
                                        self.channel_id, self.videoinfo["channel"], True)
                 await self.conn.execute("INSERT INTO chan_names VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
                                         self.channel_id, self.videoinfo["channel"],
-                                        datetime.now(tz=pytz.timezone('Europe/Berlin')))
+                                        datetime.now(tz=self.timezone))
         self.chat_err = True
-        repeats = 0
         log_exist_test, filesize, db_retries_had_scs, repeats = await self.already_done(self.conn)
         self.videoinfo["retries_of_rerecording_had_scs"] = db_retries_had_scs
         self.videoinfo["retries_of_rerecording"] = repeats
@@ -314,10 +316,11 @@ class SuperchatArchiver:
                 if "liveStreamingDetails" in self.videoinfo.keys() or self.videoinfo["live"] != "none" or repeats >= 1:
                     self.stats.clear()
                     self.chat_err = False
-                    self.started_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
+                    self.started_at = datetime.now(tz=self.timezone)
                     publishtime = datetime.fromtimestamp(self.videoPostedAt,timezone.utc)
                     if self.conn.is_closed():
                         await self.psql_connect()
+                    #insert video metadata
                     async with self.conn.transaction():
                         await self.conn.execute(
                             "INSERT INTO video (video_id,channel_id,title,startedlogat,createddatetime) "
@@ -354,7 +357,7 @@ class SuperchatArchiver:
                         await self.log_output(str(e),30)
                     self.videoinfo["membership"] = self.running_chat.member_stream
                     if repeats == 0 and not self.chat_err and not self.cancelled and not self.ended_at:
-                        self.ended_at = datetime.now(tz=pytz.timezone('Europe/Berlin'))
+                        self.ended_at = datetime.now(tz=self.timezone)
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
                     await self.httpclient.aclose()
                     newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
@@ -413,7 +416,7 @@ class SuperchatArchiver:
             count_scs = 0
             for c_id, msg in self.sc_msgs.items():
                 msg["id"] = c_id
-                if msg["type"] not in ["newSponsor", "sponsorMessage"]:
+                if msg["type"] not in ["newSponsor", "sponsorMessage", "giftRedemption"]:
                     count_scs += 1
                     self.donors.setdefault(msg["userid"],{})
                     donations = self.donors[msg["userid"]]["donations"].setdefault(msg["currency"],[0,0])
