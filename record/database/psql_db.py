@@ -1,3 +1,4 @@
+from typing import Tuple
 import asyncpg, asyncio
 from datetime import datetime, timezone, timedelta
 from .storage_interface import StorageInterface
@@ -16,22 +17,23 @@ class PostgresDB(StorageInterface):
         self.running = True
 
     async def connect(self, prep=False):
-        self._conn = await asyncpg.connect(user = self._username, password = self._password,
+        conn = await asyncpg.connect(user = self._username, password = self._password,
                                            host = self._dbhost, database = self._database)
         if prep:
-            self._insert_channel_sql = await self._conn.prepare("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) "
+            insert_channel_sql = await conn.prepare("INSERT INTO channel(id, name, tracked) VALUES ($1,$2,$3) "
                                                                 "ON CONFLICT DO NOTHING")
-            self._channel_name_history_sql = await self._conn.prepare(
+            channel_name_history_sql = await conn.prepare(
                 "INSERT INTO chan_names(id, name, time_discovered, time_used) "
                 "VALUES ($1,$2,$3,$4) ON CONFLICT (id,name) DO UPDATE SET time_used = $4")
-            self._insert_message_sql = await self._conn.prepare("INSERT INTO messages(video_id, chat_id, user_id, message_txt, "
+            insert_message_sql = await conn.prepare("INSERT INTO messages(video_id, chat_id, user_id, message_txt, "
                                                                 "time_sent, currency, value, color) "
                                                                 "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING")
-        return
+            return conn, insert_channel_sql, channel_name_history_sql, insert_message_sql
+        return conn
 
-    async def disconnect(self):
-        if not self._conn.is_closed():
-            await self._conn.close()
+    async def disconnect(self, conn):
+        if not conn.is_closed():
+            await conn.close()
 
     async def update_metadata(self, video_id, channel_id, title, caught_while, live,
                         retries_of_rerecording,
@@ -70,9 +72,9 @@ class PostgresDB(StorageInterface):
         return
 
     async def get_video_metadata(self, video_id: str):
-        await self.connect()
-        meta_row = await self._conn.fetchrow('SELECT c.name, channel_id, title, caught_while, live, old_title, length, createdDateTime, publishDateTime, startedLogAt, endedLogAt, scheduledStartTime, actualStartTime, actualEndTime, retries_of_rerecording, retries_of_rerecording_had_scs, membership FROM video INNER JOIN channel c on channel_id = c.id WHERE video_id = $1', video_id)
-        await self.disconnect()
+        conn = await self.connect()
+        meta_row = await conn.fetchrow('SELECT c.name, channel_id, title, caught_while, live, old_title, length, createdDateTime, publishDateTime, startedLogAt, endedLogAt, scheduledStartTime, actualStartTime, actualEndTime, retries_of_rerecording, retries_of_rerecording_had_scs, membership FROM video INNER JOIN channel c on channel_id = c.id WHERE video_id = $1', video_id)
+        await self.disconnect(conn)
         res = dict(meta_row) if meta_row else dict()
         return res
 
@@ -109,11 +111,11 @@ class PostgresDB(StorageInterface):
     async def log_exists(self, video_id: str) -> bool:
         pass
 
-    async def get_retries(self, video_id: str) -> tuple[int,int]:
-        await self.connect()
-        row = await self._conn.fetchrow('SELECT retries_of_rerecording_had_scs, retries_of_rerecording '
+    async def get_retries(self, video_id: str) -> Tuple[int,int]:
+        conn = await self.connect()
+        row = await conn.fetchrow('SELECT retries_of_rerecording_had_scs, retries_of_rerecording '
                                         'FROM video WHERE video_id = $1', video_id)
-        await self.disconnect()
+        await self.disconnect(conn)
         successful_sc_recordings = 0
         repeats = 0
         if row:
@@ -123,40 +125,40 @@ class PostgresDB(StorageInterface):
         return successful_sc_recordings, repeats
 
     async def get_recorded_vid_ids(self, channel_id, last_hours = 12):
-        await self.connect()
+        conn = await self.connect()
         query = "select video_id from video where retries_of_rerecording_had_scs = 2 and caught_while <> 'none' "\
                 "and scheduledstarttime < $1 and channel_id = $2 order by scheduledstarttime desc"
-        old_streams = await self._conn.fetch(query, datetime.now(timezone.utc) - timedelta(hours=last_hours), channel_id)
-        await self.disconnect()
+        old_streams = await conn.fetch(query, datetime.now(timezone.utc) - timedelta(hours=last_hours), channel_id)
+        await self.disconnect(conn)
         recorded_set = set([rec["video_id"] for rec in old_streams])
         return recorded_set
 
     async def get_all_unfinished_vids(self, last_hours = 12):
-        await self.connect()
+        conn = await self.connect()
         query = ("select video_id from video where (retries_of_rerecording_had_scs < 2 or retries_of_rerecording_had_scs is null) "
                  "and caught_while <> 'none' and scheduledstarttime < $1 order by scheduledstarttime")
-        old_streams = await self._conn.fetch(query, datetime.now(timezone.utc) - timedelta(hours=last_hours))
-        await self.disconnect()
+        old_streams = await conn.fetch(query, datetime.now(timezone.utc) - timedelta(hours=last_hours))
+        await self.disconnect(conn)
         recorded_set = set([rec["video_id"] for rec in old_streams])
         return recorded_set
 
     async def flush(self):
-        await self.connect(True)
-        async with self._conn.transaction():
+        conn, insert_channel_sql, channel_name_history_sql, insert_message_sql = await self.connect(True)
+        async with conn.transaction():
             for rawdata in self._dataqueue:
                 sql, values = rawdata
-                await self._conn.execute(sql, *values)
+                await conn.execute(sql, *values)
         self._dataqueue.clear()
-        async with self._conn.transaction():
-            await self._insert_channel_sql.executemany(self._chanqueue)
+        async with conn.transaction():
+            await insert_channel_sql.executemany(self._chanqueue)
             self._chanqueue.clear()
-        async with self._conn.transaction():
-            await self._channel_name_history_sql.executemany(self._channamequeue)
+        async with conn.transaction():
+            await channel_name_history_sql.executemany(self._channamequeue)
             self._channamequeue.clear()
-        async with self._conn.transaction():
-            await self._insert_message_sql.executemany(self._msgqueue)
+        async with conn.transaction():
+            await insert_message_sql.executemany(self._msgqueue)
             self._msgqueue.clear()
-        await self.disconnect()
+        await self.disconnect(conn)
 
     async def flush_on_event(self):
         while self.running:
