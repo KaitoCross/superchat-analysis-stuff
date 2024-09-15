@@ -7,13 +7,13 @@ class StorageInterface(object):
     async def connect(self):
         pass
 
-    async def disconnect(self):
+    async def disconnect(self, conn):
         pass
 
     async def update_metadata(self, video_id, channel_id, title, caught_while, live,
                         retries_of_rerecording,
                         retries_of_rerecording_had_scs, length = None, endedLogAt = None, publishDateTime = None, scheduledStartTime = None,
-                        actualStartTime= None, actualEndTime = None, old_title = None, membership = None):
+                        actualStartTime = None, actualEndTime = None, old_title = None, membership = None):
         pass
 
     async def get_video_metadata(self, video_id: str):
