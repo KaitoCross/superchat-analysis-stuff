@@ -1,4 +1,5 @@
 import math, pytz, asyncio, copy
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 class VideoMetaAPIBase(object):
@@ -13,6 +14,7 @@ class VideoMetaAPIBase(object):
         self._timezone = reset_tz #pytz.timezone('America/Los_Angeles')
         self._log = log_callback
         self.chan_nrs = chans
+        self._lock = asyncio.Lock()
 
     @property
     def points_used(self):
@@ -26,11 +28,17 @@ class VideoMetaAPIBase(object):
     def points_used(self, a: int):
         self._points_used = a
 
+    async def get_pts_used(self):
+        async with self._lock:
+            cp = deepcopy(self._points_used)
+        return cp
+
     def set_api_key(self, key: str):
         self._api_key = key
 
-    def search_requests_left(self):
-        return (self._points - self.points_used) // (self.chan_nrs * self._cost_per_search_request)
+    async def search_requests_left(self):
+        pts_left = self._points - await self.get_pts_used()
+        return pts_left // (self.chan_nrs * self._cost_per_search_request)
 
     async def get_live_streams(self, channel_id: str):
         pass
@@ -38,17 +46,19 @@ class VideoMetaAPIBase(object):
     async def get_live_streams_multichannel(self, channels):
         pass
 
-    def add_cost(self, cost = 0):
+    async def add_cost(self, cost = 0):
         if cost == 0:
             cost = self._cost_per_search_request
-        self.points_used += cost
+        async with self._lock:
+            self.points_used += cost
 
-    def mark_all_used(self):
-        self.points_used = copy.copy(self._points)
+    async def mark_all_used(self):
+        async with self._lock:
+            self.points_used = copy.copy(self._points)
 
-    def get_sleep_dur(self, request_count = -1):
+    async def get_sleep_dur(self, request_count = -1):
         if request_count < 0:
-            request_count = self.search_requests_left()
+            request_count = await self.search_requests_left()
         temp = self.time_until_specified_hour(0, self._timezone)
         sleep_dur = max(temp.total_seconds() / request_count, self._min_sleep)
         return sleep_dur
@@ -60,28 +70,32 @@ class VideoMetaAPIBase(object):
         sleep_dur = t_delta.total_seconds()
         return sleep_dur, resume_at
 
-    def points_depleted(self, add_points = 0):
+    async def points_depleted(self, add_points = 0):
         pass
 
-    async def sleep_by_points(self, add_points = 0, do_reset_sleep = False, add_log = None, reset_cb = None):
+    async def sleep_by_points(self, add_points = 0, do_reset_sleep = False, add_log = None, reset_cb = None, request_mode = True):
         # If we somehow used too many API points, calculate waiting time between now and midnight pacific time
         reset_used = False
         sleep_dur = None
-        if self.points_depleted(add_points) or do_reset_sleep:
+        if await self.points_depleted(add_points) or do_reset_sleep:
             sleep_dur, resume_at = await self.get_reset_sleep_dur()
             requests_left = 0
             reset_used = True
-        else:
+        elif request_mode:
             # Calculate how long I have to wait for the next search request
             # trying not to exceed the 24h API usage limits while also accounting for time already passed since last
             # API point reset (which happens at midnight pacific time)
-            requests_left = self.search_requests_left()
+            requests_left = await self.search_requests_left()
             if requests_left > 0:
-                sleep_dur = self.get_sleep_dur(requests_left+1) # +1 because else we're skipping a possible request
+                sleep_dur = await self.get_sleep_dur(requests_left+1) # +1 because else we're skipping a possible request
                 resume_at = datetime.now(tz=pytz.timezone('Europe/Berlin')) + timedelta(seconds=sleep_dur)
             else:
                 sleep_dur, resume_at = await self.get_reset_sleep_dur()
                 reset_used = True
+        else:
+            resume_at = datetime.now(tz=timezone.utc)
+            sleep_dur = 0.0
+            requests_left = "enough"
         awake_at = resume_at.astimezone(pytz.timezone('Europe/Berlin'))
         await self.log_sleep(sleep_dur, add_points, awake_at, requests_left)
         if add_log is not None:
@@ -103,7 +117,8 @@ class VideoMetaAPIBase(object):
         await self._log(f'next run at: {awake_at.isoformat()} Berlin Time')
 
     async def reset_pts(self):
-        self.points_used = 0
+        async with self._lock:
+            self.points_used = 0
         await self._log(f"used points reset at {datetime.now(tz=pytz.timezone('Europe/Berlin')).isoformat()} Berlin time")
 
     async def reset_timer(self, w_hour = 0):

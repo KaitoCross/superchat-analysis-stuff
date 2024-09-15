@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from .VideoMetaAPIBase import VideoMetaAPIBase
 from typing import Set
 import traceback, math, requests, aiohttp
@@ -19,7 +21,7 @@ class HolodexDataAPI(VideoMetaAPIBase):
             async with aiohttp.ClientSession(headers={"X-APIKEY": self._api_key}) as session:
                 apiparams = {"channels": ",".join(channels)}
                 async with session.get(self.api_endpoint, params=apiparams) as resp:
-                    self.add_cost()
+                    await self.add_cost()
                     if resp.status == 200:
                         streams_raw_json = await resp.json()
                         for streams in streams_raw_json:
@@ -33,11 +35,14 @@ class HolodexDataAPI(VideoMetaAPIBase):
             await self._log(str(e), 30)
         return res_set
 
-    def points_depleted(self, add_points = 0):
-        return self._points_used + add_points >= self._points
+    async def points_depleted(self, add_points = 0):
+        pts_depleted = await self.get_pts_used() + add_points >= self._points
+        return pts_depleted
 
     async def log_used(self, add_points = 0):
-        await self._log(f'approx. {self._points_used} Holodex API points used')
+        total_pts_used = await self.get_pts_used()
+        await self._log(f'approx. {total_pts_used} Holodex API points used')
 
-    def search_requests_left(self):
-        return math.floor((self._points - self._points_used) / self._cost_per_search_request)
+    async def search_requests_left(self):
+        pts_left = self._points - await self.get_pts_used()
+        return math.floor(pts_left / self._cost_per_search_request)

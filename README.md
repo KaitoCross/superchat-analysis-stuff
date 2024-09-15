@@ -2,17 +2,16 @@
 The scripts require [this modified version of pytchat](https://github.com/KaitoCross/pytchat) that is NOT in the pip repository.
 
 ## monitoring YouTube channels to record superchats from planned livestreams
-usage: `python3 monitor_livestreams.py channel_ids`  
-It supports multiple channels at once by passing multiple channel IDs as parameter.  
-In order to track the activity of the channel, we rely on the YouTube Data API v3. Please get yourself the appropriate API key and save it under yt_api_key.txt in the same folder as this python script.  
+usage: `python3 monitor_livestreams.py path_to_channel_list`  
+It supports multiple channels at once by passing a the path of a file that contains multiple channel IDs as parameter. The ID's in the file have to be separated by line breaks.  
+In order to track the activity of the channel, we rely on either the YouTube Data API v3 or the Holodex API. If you want to use the Holodex API, you need to provide the CLI parameter `--holo_keyfile path_to_file`. To get the metadata of the YouTube videos/streams, it purely relies on the YouTube Data API. Please get yourself the appropriate API keys and save the YouTube API key under yt_api_key.txt in the same folder as this python script.  
 When it detects a planned livestream, it will start recording Superchats before the livestream starts. Once it ends, it will try to re-record superchats from the archive of the video in order to retrieve potentially previously unrecorded superchats. It automatically adds those to the statistics and logs.
 
 ## recording livestream superchats
-usage: `python3 async_record_running_livestream_superchats.py video_ID`  
+usage: `python3 async_record_running_livestream_superchats.py video_id`  
 This can be used to record superchats from ongoing & planned livestreams & premieres as well as from broadcast/livestream recordings as long as the chat (chat replay in case of recording) is available.  
 When it detects a planned or running livestream, it will start recording Superchats from the ongoing chat immediately. Once it ends, it will try to re-record superchats from the archive of the livestream in order to retrieve potentially previously unrecorded superchats. It automatically adds those to the statistics and logs.
-This script also fetches some metadata of the stream, for which it needs the same API key as mentioned above in the same text file.  
-If you add ` -wc` to the command, it will automatically generate a wordcloud after the recording is finished.
+This script also fetches some metadata of the stream, for which it needs the same YouTube API key as mentioned above in the same text file.  
 
 ## Which information regarding the superchats will be recorded
 1. timestamp of message
@@ -21,9 +20,8 @@ If you add ` -wc` to the command, it will automatically generate a wordcloud aft
 4. the used currency
 5. the amount of money donated
 6. The superchat colour
-7. which day of the week (0-6) / hour of the day / minute of the hour it was sent on
 
-The scripts create a folder for each YouTube Channel it comes across, using the channel ID as folder name. Within these the scripts saves the superchat logs into the sc_logs subfolder, naming the log textfile after the respective video ID + .txt  
+The scripts create a folder in the `txtarchive` folder for each YouTube Channel it comes across, using the channel ID as folder name. Within these the scripts saves the superchat logs into the sc_logs subfolder, naming the log textfile after the respective video ID + .txt  
 They also save some metadata about the stream (like title, channel, start & end time, total sum of donations split by currencies) in the vid_stats subfolder of the channel folder. The filenames consist of the video ID + _stats.txt at the end.  
 The stored data is JSON formatted.  
 All of the data is additionally stored in a postgres database which you must create by using the sql commands in `db-structure.sql`.  
