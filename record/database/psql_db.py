@@ -1,5 +1,5 @@
 import asyncpg, asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from .storage_interface import StorageInterface
 
 class PostgresDB(StorageInterface):
@@ -121,6 +121,24 @@ class PostgresDB(StorageInterface):
                 "retries_of_rerecording_had_scs"] else 0
             repeats = row["retries_of_rerecording"] if row["retries_of_rerecording"] else 0
         return successful_sc_recordings, repeats
+
+    async def get_recorded_vid_ids(self, channel_id, last_hours = 12):
+        await self.connect()
+        query = "select video_id from video where retries_of_rerecording_had_scs = 2 and caught_while <> 'none' "\
+                "and scheduledstarttime < $1 and channel_id = $2 order by scheduledstarttime desc"
+        old_streams = await self._conn.fetch(query, datetime.now(timezone.utc) - timedelta(hours=last_hours), channel_id)
+        await self.disconnect()
+        recorded_set = set([rec["video_id"] for rec in old_streams])
+        return recorded_set
+
+    async def get_all_unfinished_vids(self, last_hours = 12):
+        await self.connect()
+        query = ("select video_id from video where (retries_of_rerecording_had_scs < 2 or retries_of_rerecording_had_scs is null) "
+                 "and caught_while <> 'none' and scheduledstarttime < $1 order by scheduledstarttime")
+        old_streams = await self._conn.fetch(query, datetime.now(timezone.utc) - timedelta(hours=last_hours))
+        await self.disconnect()
+        recorded_set = set([rec["video_id"] for rec in old_streams])
+        return recorded_set
 
     async def flush(self):
         await self.connect(True)

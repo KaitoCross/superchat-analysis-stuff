@@ -3,14 +3,14 @@
 import asyncio, pytz, argparse, os, json, isodate, pathlib, concurrent.futures, asyncpg, copy, logging, httpx
 from datetime import datetime, timezone
 from pytchat import (LiveChatAsync, SuperchatCalculator, SuperChatLogProcessor, config, exceptions)
-from youtube_api import YouTubeDataAPI
+from data_apis.YouTubeCustomAPI import YouTubeCustomAPI
 from merge_SC_logs_v2 import recount_money
 from decimal import Decimal
 from database.psql_db import PostgresDB
 from database.json_log import JSONLogDB
 
 class SuperchatArchiver:
-    def __init__(self,vid_id, api_key, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30, retry_attempts = 72, min_successful_attempts = 2, logger = None, t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)):
+    def __init__(self, vid_id, api_or_key = None, loop = None, file_suffix = ".standalone.txt", minutes_wait = 30, retry_attempts = 72, min_successful_attempts = 2, logger = None, t_pool = concurrent.futures.ThreadPoolExecutor(max_workers=100)):
         self.total_counted_msgs = 0
         self.total_new_members = 0
         self.max_retry_attempts = retry_attempts
@@ -22,8 +22,12 @@ class SuperchatArchiver:
         self.loop = loop
         self.t_pool = t_pool
         self.timezone = pytz.timezone('Europe/Berlin')
-        self.api_points_log = [(1.0,datetime.now(tz=self.timezone))]
-        self.api = YouTubeDataAPI(api_key) #uses 1p to check key
+        if isinstance(api_or_key, str):
+            self._api = YouTubeCustomAPI(api_or_key, 1, pytz.timezone('America/Los_Angeles'), self.log_output)
+        elif isinstance(api_or_key, YouTubeCustomAPI):
+            self._api = api_or_key
+        else:
+            raise TypeError("No API Key or API passed!")
         self.videoid = vid_id
         self.channel_id = ""
         self.metadata = {}
@@ -42,22 +46,9 @@ class SuperchatArchiver:
                           "₹": "INR",
                           "\u20b1": "PHP",
                           "\u20aa": "ILS"}
-
-        self.metadata = self.get_video_info(self.videoid)
-        self.api_points_log.append((1.0,datetime.now(tz=self.timezone)))
         self.total_member_msgs = 0
         self.running = True
         self.running_chat = None
-        if self.metadata is not None:
-            self.videoinfo = self.metadata
-            self.videoinfo["retries_of_rerecording_had_scs"] = 0
-            self.videoinfo["retries_of_rerecording"] = 0
-            self.videoinfo["membership"] = False
-            self.videoPostedAt = copy.deepcopy(self.videoinfo["publishDateTime"])
-            self.channel_id = self.metadata["channel_id"]
-        else:
-            self.videoPostedAt = 0
-            self.channel_id = "privatted-deleted-memebershipped"
         self.skeleton_dict = {"channel": None,
                               "channel_id": None,
                               "video_id": None,
@@ -98,45 +89,25 @@ class SuperchatArchiver:
         self.db = PostgresDB(username = self.pgsql_creds["username"], password = self.pgsql_creds["password"],
                              host = self.pgsql_creds["host"], database = self.pgsql_creds["database"])
 
+    async def init_metadata(self):
+        self.metadata = await self._api.async_get_video_info(self.videoid, self.loop, self.t_pool)
+        self._api.points_used += 1
+        if self.metadata is not None:
+            self.videoinfo = self.metadata
+            self.videoinfo["retries_of_rerecording_had_scs"] = 0
+            self.videoinfo["retries_of_rerecording"] = 0
+            self.videoinfo["membership"] = False
+            self.videoPostedAt = copy.deepcopy(self.videoinfo["publishDateTime"])
+            self.channel_id = self.metadata["channel_id"]
+        else:
+            self.videoPostedAt = 0
+            self.channel_id = "privatted-deleted-memebershipped"
+
     def __str__(self):
         return f'[{self.videoid}] {self.videoinfo.get("channel", "")} - {self.videoinfo.get("title","")} - Running: {self.running} Live: {self.videoinfo.get("live", "")}'
     
     def __repr__(self):
         return f'[{self.videoid}] {self.videoinfo.get("channel", "")} - {self.videoinfo.get("title","")} - Running: {self.running} Live: {self.videoinfo.get("live", "")}'
-
-    def get_video_info(self,video_ID: str):
-        response = None
-        try:
-            response = self.api.get_video_metadata(video_id=video_ID, parser=None,
-                                                   part=["liveStreamingDetails", "contentDetails", "snippet"])
-            api_metadata = {"channel": response["snippet"]["channelTitle"],
-                            "channel_id": response["snippet"]["channelId"],
-                            "video_id": video_ID,
-                            "title": response["snippet"]["title"],
-                            "live": response["snippet"]["liveBroadcastContent"],
-                            "caught_while": response["snippet"]["liveBroadcastContent"],
-                            "publishDateTime": datetime.strptime(response["snippet"]["publishedAt"] + " +0000",
-                                                                 "%Y-%m-%dT%H:%M:%SZ %z").timestamp()}
-            delta = isodate.parse_duration(response["contentDetails"]["duration"])
-            api_metadata["length"] = delta.total_seconds()
-            if 'liveStreamingDetails' in response.keys():
-                api_metadata["liveStreamingDetails"] = {}
-                for d in response["liveStreamingDetails"].keys():
-                    if "Time" in d or "time" in d:
-                        api_metadata["liveStreamingDetails"][d] = datetime.strptime(
-                            f'{response["liveStreamingDetails"][d]} +0000', "%Y-%m-%dT%H:%M:%SZ %z").timestamp()
-            return api_metadata
-
-        except Exception as e:
-            print(self.videoid)
-            print(e)
-            print(response)
-            return None
-
-    async def async_get_video_info(self, video_id: str):
-        self.api_points_log.append((1.0,datetime.now(tz=self.timezone)))
-        api_metadata = await self.loop.run_in_executor(self.t_pool,self.get_video_info,video_id)
-        return api_metadata
 
     def cancel(self):
         self.cancelled = True
@@ -157,6 +128,7 @@ class SuperchatArchiver:
     async def main(self):
         if not self.loop:
             self.loop = asyncio.get_running_loop()
+        await self.init_metadata()
         await self.log_output(self.videoinfo,10)
         #fetch old video metadata
         self.db_task = asyncio.create_task(self.db.flush_on_event())
@@ -286,7 +258,7 @@ class SuperchatArchiver:
                         self.ended_at = datetime.now(tz=self.timezone)
                         self.videoinfo["endedLogAt"] = self.ended_at.timestamp()
                     await self.httpclient.aclose()
-                    newmetadata = await self.async_get_video_info(self.videoid) #when livestream chat parsing ends, get some more metadata
+                    newmetadata = await self._api.async_get_video_info(self.videoid, self.loop, self.t_pool) #when livestream chat parsing ends, get some more metadata
                     if newmetadata is not None:
                         if newmetadata["live"] in ["upcoming","live"] and not self.cancelled: #in case the livestream has not ended yet!
                             await self.log_output(("Error! Chat monitor ended prematurely!",self.running_chat.is_alive()),30)
