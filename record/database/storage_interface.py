@@ -1,3 +1,4 @@
+from typing import Tuple
 
 class StorageInterface(object):
     def __init__(self):
@@ -36,7 +37,7 @@ class StorageInterface(object):
     async def log_exists(self, video_id: str) -> bool:
         pass
 
-    async def get_retries(self, video_id: str) -> tuple[int,int]:
+    async def get_retries(self, video_id: str) -> Tuple[int,int]:
         pass
 
     async def flush(self):

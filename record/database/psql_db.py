@@ -1,3 +1,4 @@
+from typing import Tuple
 import asyncpg, asyncio
 from datetime import datetime, timezone, timedelta
 from .storage_interface import StorageInterface
@@ -109,7 +110,7 @@ class PostgresDB(StorageInterface):
     async def log_exists(self, video_id: str) -> bool:
         pass
 
-    async def get_retries(self, video_id: str) -> tuple[int,int]:
+    async def get_retries(self, video_id: str) -> Tuple[int,int]:
         await self.connect()
         row = await self._conn.fetchrow('SELECT retries_of_rerecording_had_scs, retries_of_rerecording '
                                         'FROM video WHERE video_id = $1', video_id)
