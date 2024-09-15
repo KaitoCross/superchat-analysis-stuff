@@ -369,7 +369,8 @@ class SuperchatArchiver:
                     sc_currency = c.currency.replace(u'\xa0', '')
                     await self.db.insert_chan_name_hist(sc_userid,sc_user,sc_datetime,name_used_datetime)
                     await self.db.insert_channel_metadata(sc_userid, sc_user, False)
-                    await self.json_saver.add_donors(sc_userid, sc_user)
+                    if c.type != "sponsorMessage":
+                        await self.json_saver.add_donors(sc_userid, sc_user)
                     sc_info = {"msg_type": c.type, "time_sent":sc_datetime,"currency":sc_currency,"value":c.amountValue,
                                "user_id":sc_userid, "message_txt":sc_message, "color":sc_color, "chat_id": chat_id}
                     if c.type == "sponsorMessage":

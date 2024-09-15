@@ -59,7 +59,7 @@ class JSONLogDB(StorageInterface):
         for c_id, msg in self._msgs.items():
             if msg["type"] not in ["newSponsor", "sponsorMessage", "giftRedemption"]:
                 count_dono += 1
-                self._donors.setdefault(msg["user_id"], {})
+                #self._donors.setdefault(msg["user_id"], {})
                 donations = self._donors[msg["user_id"]]["donations"].setdefault(msg["currency"], [0, 0])
                 self._donors[msg["user_id"]]["donations"][msg["currency"]][0] = donations[0] + 1  # amount of donations
                 self._donors[msg["user_id"]]["donations"][msg["currency"]][1] = donations[1] + msg["value"]  # total amount of money donated
