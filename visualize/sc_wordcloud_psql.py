@@ -26,7 +26,7 @@ class superchat_wordcloud:
     def generate(self):
         conn = psycopg2.connect(dbname=self.pgsql_creds["database"], user=self.pgsql_creds["username"], host = self.pgsql_creds["host"], password = self.pgsql_creds["password"])
         cur = conn.cursor()
-        cur.execute("SELECT message_txt FROM messages WHERE video_id = %s;",(self.video_id,))
+        cur.execute("SELECT message_txt FROM messages WHERE video_id = %s AND NOT currency = %s;",(self.video_id,"MGI"))
         results = cur.fetchall()
         conn.close()
         self.ignored_words=set()
