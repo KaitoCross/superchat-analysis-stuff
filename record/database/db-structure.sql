@@ -87,7 +87,7 @@ CREATE TABLE unit_members(
 );
 
 INSERT INTO agency VALUES (1,'Hololive'), (2,'Nijisanji'), (3,'PRISM Project');
-INSERT INTO unit VALUES (1,1,'Myth'), (2,1,'Council'), (3,1,'Project: HOPE');
+INSERT INTO unit VALUES (1,1,'Myth'), (2,1,'Council'), (3,1,'Project: HOPE'), (26,1,'Advent'), (27,1,'Justice');
 INSERT INTO unit_members VALUES (1,'UCHsx4Hqa-1ORjQTh9TYDhww'),(1,'UCL_qhgtOy0dy1Agp8vkySQg'),(1,'UCoSrY_IQQVpmIRZ9Xf-y93g'),(1,'UCMwGHR0BTZuLsmjY_NT5Pwg'),(1,'UCyl1z3jo3XHR1riLFKG5UAg');
 INSERT INTO unit_members VALUES (2,'UCsUj0dszADCGbF3gNrQEuSQ'),(2,'UCgmPnx-EEeOrZSg5Tiw7ZRQ'),(2,'UCmbs8T6MWqUHP1tIQvSgKrg'),(2,'UCO_aKKYxn4tvrqPjcTzZ6EQ'),(2,'UC3n5uGu18FoCy23ggWWp8tA');
 INSERT INTO unit_members VALUES (3,'UC8rcEBzJSleTkf_-agPM20g');
@@ -104,6 +104,8 @@ INSERT INTO unit_members VALUES (10,'UC2hWFlqMew61Jy6A8zu5HzQ'),(10,'UCRWF6QSukl
 INSERT INTO unit_members VALUES (11,'UCnYhIk9aGEx_bIgheVjs53w'),(11,'UCBJFsaCvgBa1a9BnEaxu97Q');
 INSERT INTO unit_members VALUES (12,'UCswvd6_YWmd6riRk-8oT-sA'),(12,'UCw1KNjVqfrJSfcFd6zlcSzA'),(12,'UCpeRj9-GaLGNUoKdI5I7vZA'),(12,'UC0ZTVxCHkZanT5dnP2FZD4Q');
 INSERT INTO unit_members VALUES (13,'UCgM1sly6rnxqWe8GLbceEag'),(13,'UCkJ64W0J7R0zCSAsZfRIhVQ'),(13,'UCx_A6fns9qKjybu-6k0ur1g'),(13,'UCKRGwowORbvAnoeZ-G06duQ');
+INSERT INTO unit_members VALUES (26,'UC9p_lqQ0FEDz327Vgf5JwqA'), (26,'UCgnfPPb9JI3e9A4cXHnWbyg'), (26,'UC_sFNM0z0MWm9A6WlKPuMMg'), (26,'UCt9H_RpQzhxzlyBxFqrdHqA');
+INSERT INTO unit_members VALUES (27,'UCDHABijvPBnJm7F-KlNME3w'), (27,'UCl69AEx4MdqMZH7Jtsm7Tig'), (27,'UCvN5h1ShZtc7nly3pezRayg'), (27,'UCW5uhrG1eCBYditmhL0Ykjw');
 
 INSERT INTO area VALUES
     (1, 'North America'),(2,'South America'),(3,'Europe'),(4,'Africa'),(5,'Asia'),(6,'Oceania');

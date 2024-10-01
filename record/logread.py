@@ -12,9 +12,10 @@ class SuperchatLog(object):
         infos = self.stats[0]
         self.infos = infos
         self.channelName = infos["channel"]
-        self.channelId = infos["channelId"]
-        self.videoid = infos["id"]
+        self.channelId = infos["channel_id"]
+        self.videoid = infos["video_id"]
         self.videotitle = infos["title"]
+        self.filters = ["giftRedemption", "newSponsor", "sponsorMessage"]
         self.published = datetime.fromtimestamp(infos["publishDateTime"],timezone.utc)
         self.len = infos["length"]
         self.liveStreamingDetails = {}
@@ -29,25 +30,26 @@ class SuperchatLog(object):
     def chatlog(self):
         loglist = list()
         for entry in self.log:
-            logmsg = (self.videoid,entry["userid"],entry["message"],datetime.fromtimestamp(entry["time"]/1000.0,timezone.utc),
-                            entry["currency"],entry["value"],entry.setdefault("color",0))
-            loglist.append(logmsg)
+            if entry["type"] not in self.filters:
+                logmsg = (self.videoid,entry.get("id","RIP"),entry["user_id"],entry["message"],datetime.fromisoformat(entry["time"]),
+                                entry["currency"],entry["value"],entry.setdefault("color",0))
+                loglist.append(logmsg)
         return loglist
 
     def usernamelog(self):
         loglist = list()
         userlist = list()
         for entry in self.log:
-            if self.donor_seperate:
-                logmsg = (entry["userid"], self.donors[entry["userid"]]["names"][0],
-                          datetime.fromtimestamp(entry["time"]/1000.0, timezone.utc))
+            if self.donor_seperate and entry["type"] not in self.filters:
+                logmsg = (entry["user_id"], self.donors[entry["user_id"]]["names"][0],
+                          datetime.fromisoformat(entry["time"]))
                 loglist.append(logmsg)
-                userlist.append((entry["userid"], self.donors[entry["userid"]]["names"][0], False))
-            else:
-                logmsg = (entry["userid"], entry["user"],
-                          datetime.fromtimestamp(entry["time"]/1000.0, timezone.utc))
+                userlist.append((entry["user_id"], self.donors[entry["user_id"]]["names"][0], False))
+            elif "user" in entry.keys():
+                logmsg = (entry["user_id"], entry["user"],
+                          datetime.fromisoformat(entry["time"]))
                 loglist.append(logmsg)
-                userlist.append((entry["userid"], entry["user"], False))
+                userlist.append((entry["user_id"], entry["user"], False))
         return loglist, userlist
 
 if __name__ == "__main__":
@@ -64,7 +66,7 @@ if __name__ == "__main__":
     for channel in folders:
         statfolder = channel / "vid_stats"
         print(channel)
-        statfiles = [x for x in statfolder.iterdir() if x.is_file() and ".txt" in x.parts[-1]]
+        statfiles = [x for x in statfolder.iterdir() if x.is_file() and ".json" in x.parts[-1]]
         for s_file in statfiles:
             l_f_name = s_file.parts[-1].replace("_stats","")
             lf_path = channel / "sc_logs" / l_f_name
@@ -97,8 +99,8 @@ if __name__ == "__main__":
                     userlog, userlist = a.usernamelog()
                     psycopg2.extras.execute_batch(cur, "INSERT INTO channel VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", tuple(userlist))
                     psycopg2.extras.execute_batch(cur, "INSERT INTO chan_names VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", tuple(userlog))
-                    psycopg2.extras.execute_batch(cur, "INSERT INTO messages "
-                                                       "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING", tuple(a.chatlog()))
+                    clog = a.chatlog()
+                    psycopg2.extras.execute_batch(cur, "INSERT INTO messages VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING", tuple(clog))
 
     conn.commit()
     cur.close()
