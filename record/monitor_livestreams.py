@@ -87,7 +87,7 @@ class channel_monitor(MultichannelRecordingBase):
     async def reload_config(self, sig):
         await self.log_output('reloading configuration')
         self.load_config()
-        self.load_channel_list()
+        self.load_channel_list(self.config_files["channels"])
         self.yt_api.set_api_key(self.yt_api_key)
         self.holodex_api.set_api_key(self.holo_api_key)
         max_watched_channels = len(self.chan_ids)
