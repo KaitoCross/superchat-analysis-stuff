@@ -94,8 +94,8 @@ class SuperchatArchiver:
         self._api.points_used += 1
         if self.metadata is not None:
             self.videoinfo = self.metadata
-            self.videoinfo["retries_of_rerecording_had_scs"] = 0
             self.videoinfo["retries_of_rerecording"] = 0
+            self.videoinfo["retries_of_rerecording_had_scs"] = 0
             self.videoinfo["membership"] = False
             self.videoPostedAt = copy.deepcopy(self.videoinfo["publishDateTime"])
             self.channel_id = self.metadata["channel_id"]
@@ -192,8 +192,8 @@ class SuperchatArchiver:
         self.db.trigger()
         self.chat_err = True
         log_exist_test, filesize, db_retries_had_scs, repeats = await self.already_done()
-        self.videoinfo["retries_of_rerecording_had_scs"] = db_retries_had_scs
         self.videoinfo["retries_of_rerecording"] = repeats
+        self.videoinfo["retries_of_rerecording_had_scs"] = db_retries_had_scs
         islive = True
         already_recorded = False
         if log_exist_test:
@@ -270,14 +270,14 @@ class SuperchatArchiver:
                         createdDateTime = self.videoPostedAt
                         caught_while = self.videoinfo["caught_while"]
                         old_title = self.videoinfo["title"]
-                        retries_w_scs = self.videoinfo["retries_of_rerecording_had_scs"]
                         retries_total = self.videoinfo["retries_of_rerecording"]
+                        retries_w_scs = self.videoinfo["retries_of_rerecording_had_scs"]
                         is_member_stream = self.videoinfo["membership"]
                         if newmetadata is not None:
                             self.videoinfo = newmetadata
                             self.videoinfo["endedLogAt"] = self.ended_at.timestamp() if self.ended_at else None
-                            self.videoinfo["retries_of_rerecording_had_scs"] = retries_w_scs
                             self.videoinfo["retries_of_rerecording"] = retries_total
+                            self.videoinfo["retries_of_rerecording_had_scs"] = retries_w_scs
                             self.videoinfo["createdDateTime"] = createdDateTime
                             self.videoinfo["caught_while"] = caught_while
                             self.videoinfo["membership"] = is_member_stream
@@ -288,12 +288,12 @@ class SuperchatArchiver:
                             await self.log_output(("couldn't retrieve new metadata for",self.videoid,old_title),30)
                     else:
                         islive = False
+                    self.videoinfo["startedLogAt"] = self.started_at.timestamp()
+                    self.videoinfo["retries_of_rerecording"] = repeats
                     if (self.msg_counter+self.total_member_msgs) > 0 and not self.chat_err and not self.cancelled:
                         had_scs += 1
                         self.videoinfo["retries_of_rerecording_had_scs"] = had_scs
                         self.total_counted_msgs = 0
-                    self.videoinfo["startedLogAt"] = self.started_at.timestamp()
-                    self.videoinfo["retries_of_rerecording"] = repeats
                     paramdict = {k: v for k, v in self.videoinfo.items() if k != "liveStreamingDetails"}
                     await self.db.update_metadata(**paramdict, **self.videoinfo["liveStreamingDetails"])
                     await self.json_saver.add_video_metadata(self.videoinfo)
