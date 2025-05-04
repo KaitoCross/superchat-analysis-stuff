@@ -387,6 +387,7 @@ class SuperchatArchiver:
     def exception_handling(self,loop,context):
         ex_time = datetime.now(timezone.utc)
         self.logger.log(40,f"[{self.videoid}] Exception caught")
+        self.logger.log(40, f"{context['exception'].__traceback__}")
         self.logger.log(40,context)
 
 if __name__ =='__main__':
