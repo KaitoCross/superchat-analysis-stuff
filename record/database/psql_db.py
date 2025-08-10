@@ -42,7 +42,7 @@ class PostgresDB(StorageInterface):
         sql = "UPDATE video SET caught_while = $2, live = $3, title = $4, "\
               "retries_of_rerecording = $5, retries_of_rerecording_had_scs = $6 WHERE video_id = $1"
         self._dataqueue.append((sql,(video_id, caught_while, live, title,
-                                    retries_of_rerecording,retries_of_rerecording_had_scs)))
+                                    retries_of_rerecording, retries_of_rerecording_had_scs)))
         if scheduledStartTime is not None:
             self._dataqueue.append(("UPDATE video SET scheduledstarttime = $2 WHERE video_id = $1",
                                     (video_id, datetime.fromtimestamp(scheduledStartTime, timezone.utc))))

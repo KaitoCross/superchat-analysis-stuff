@@ -32,7 +32,10 @@ class YouTubeCustomAPI(VideoMetaAPIBase):
                 raise ValueError("API Quota exceeded!")
         await self.add_cost()
         if 'items' in planstreams_raw_json.keys():
-            streams = {streams['id']['videoId'] for streams in planstreams_raw_json['items']}
+            streams = {streams['id'].get('videoId') for streams in planstreams_raw_json['items']}
+            if None in streams:
+                await self._log("Video Key not found!", 30)
+                await self._log(f"{planstreams_raw_json['items']}", 30)
         return streams
 
     async def get_live_streams_multichannel(self, channels) -> Set:

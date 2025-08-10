@@ -66,8 +66,7 @@ class SuperchatArchiver:
                                                       "actualStartTime": None,
                                                       "actualEndTime": None}
                              }
-        self.json_saver = JSONLogDB(self.videoid, self.channel_id, file_suffix)
-        self.json_saver.connect()
+        self.suffix = file_suffix
         self.placeholders = 0
         if logger:
             self.logger = logger
@@ -130,6 +129,8 @@ class SuperchatArchiver:
             self.loop = asyncio.get_running_loop()
         await self.init_metadata()
         await self.log_output(self.videoinfo,10)
+        self.json_saver = JSONLogDB(self.videoid, self.channel_id, self.suffix)
+        self.json_saver.connect()
         #fetch old video metadata
         self.db_task = asyncio.create_task(self.db.flush_on_event())
         old_meta = await self.db.get_video_metadata(self.videoid)

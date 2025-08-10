@@ -34,8 +34,9 @@ class channel_monitor(MultichannelRecordingBase):
             self.running_streams.clear()
             stream_id_set = await self.primary_api.get_live_streams_multichannel(self.chan_ids)
             for stream_id in stream_id_set:
-                self.video_analysis.setdefault(stream_id, None)
-                self.running_streams.append(stream_id)
+                if stream_id is not None:
+                    self.video_analysis.setdefault(stream_id, None)
+                    self.running_streams.append(stream_id)
             await self.log_output(self.video_analysis)
             await self.log_output(list(self.video_analysis.keys()))
             if await self.yt_api.get_pts_used() < self.yt_api.points and not await self.holodex_api.points_depleted():
